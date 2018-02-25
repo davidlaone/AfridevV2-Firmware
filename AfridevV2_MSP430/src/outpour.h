@@ -12,7 +12,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include "msp430.h"
-#include "msp430g2553.h"
+#include "msp430g2955.h"
 #include "RTC_Calendar.h"
 #include "modemMsg.h"
 

@@ -9,10 +9,9 @@
 /*
 *  Note - the timer naming convention is very confusing on the MSP430
 *
-*  For the MSP430G2553, there are two timers on the system:  TimerA0 and TimerA1
-*    Each timer has two capture & control channels: 0 and 1
+*  For the MSP430G2955, there are three timers on the system:  TimerA0, TimerA1 and Timer B0
 * 
-*  Timer0_A3 and Timer1_A3 are 16-bit timers/counters with three capture/compare registers.
+*  The timers are 16-bit timer/counters, each with three capture/compare registers.
 * 
 *  Naming Usage:
 *  TimerA0_0, Timer A0, capture control channel 0
@@ -21,22 +20,25 @@
 *  TimerA1_0, Timer A1, capture control channel 0
 *  TimerA1_1, Timer A1, capture control channel 1
 *  TimerA1_2, Timer A1, capture control channel 2
-*  TimerB0_0, Timer B1, capture control channel 0
-*  TimerB0_1, Timer B1, capture control channel 1
-*  TimerB0_2, Timer B1, capture control channel 2
+*  TimerB0_0, Timer B0, capture control channel 0
+*  TimerB0_1, Timer B0, capture control channel 1
+*  TimerB0_2, Timer B0, capture control channel 2
 *
 *  Timer allocation/usage for Outpour APPLICATION:
-*    A0, Capture control channel 0 used with capacitance reading (no ISR)
-*    A1, Capture control channel 0 used for system tick (with ISR, vector = 13 @ 0FFFAh)
+*    A0, Capture control channel 0 used for system tick (with ISR, vector = 9 @ 0FFF2h)
+*    A1, Capture control channel 0 used with capacitance reading 
+*    B0, Capture control channel 0 used to time the capacitance reading
 *
 *  Timer allocation/usage for Outpour BOOT:
 *    A0, Capture control channel 0 used for system tick (with ISR, vector = 9 @ 0FFF2h)
 * 
 * The interrupt vector naming corresponds as follows:
-* TIMER0_A0_VECTOR -> Timer A0, capture/control channel 0, vector 9, 0xFFF2
-* TIMER0_A1_VECTOR -> Timer A0, capture/control channel 1, vector 8, 0xFFF0
-* TIMER1_A0_VECTOR -> Timer A1, capture/control channel 0, vector 13, 0xFFFA
-* TIMER1_A1_VECTOR -> Timer A1, capture/control channel 1, vector 12, 0xFFF8
+* TIMER0_A1_VECTOR -> Timer A0, capture/control channel 1, vector  0, 0xFFE0
+* TIMER0_A0_VECTOR -> Timer A0, capture/control channel 0, vector  1, 0xFFE2
+* TIMER1_A1_VECTOR -> Timer A1, capture/control channel 1, vector  8, 0xFFF0
+* TIMER1_A0_VECTOR -> Timer A1, capture/control channel 0, vector  9, 0xFFF2
+* TIMER0_B1_VECTOR -> Timer  B, capture/control channel 1, vector 12, 0xFFF8
+* TIMER0_B0_VECTOR -> Timer  B, capture/control channel 0, vector 13, 0xFFFA
 * =============================================================================== 
 * From the MSP430 Documentation:
 * 
@@ -47,7 +49,7 @@
 * timer immediately restarts counting from zero.
 * =============================================================================== 
 * Timer Registers for Timer A0 and A1  (x = 0 or 1 accordingly)
-*  TAxCTL - reg to setup timer counting type, clock, etc - CONTROLS ALL OF TIMER A1
+*  TAxCTL - reg to setup timer counting type, clock, etc - CONTROLS ALL OF TIMER 
 *  Capture/Control channel 0
 *  TAxCCR0 - specify the compare count for channel 0
 *  TAxCCTL0 - setup interrupt for channel 0 
@@ -80,18 +82,18 @@ static volatile uint8_t ticks_per_second;
 extern uint8_t CAPSENSE_ACTIVE;
 
 /**
-* \brief Initialize and start timerA1 for the one second system 
-*        tick.  Uses Timer A1, capture/control channel 0, vector
-*        13, 0xFFFA
+* \brief Initialize and start timerA0 for the one second system 
+*        tick.  Uses Timer A0, capture/control channel 0, vector
+*        9, 0xFFF2
 * \ingroup PUBLIC_API
 */
-void timerA1_init(void) {
+void timerA0_init(void) {
 
-    TA1CCR0 = 16384 - 1; // 32786Hz/16384=2HZ
+    TA0CCR0 = 16384 - 1; // 32786Hz/16384=2HZ
 
-    TA1CTL = TASSEL_1 + MC_1 + TACLR;
-    TA1CCTL0 &= ~CCIFG;
-    TA1CCTL0 |= CCIE;
+    TA0CTL = TASSEL_1 + MC_1 + TACLR;
+    TA0CCTL0 &= ~CCIFG;
+    TA0CCTL0 |= CCIE;
 
     ticks_per_second = 0;
     seconds_since_boot = 0;
@@ -109,20 +111,20 @@ uint32_t getSecondsSinceBoot(void) {
 }
 
 /**
-* \brief Timer ISR. Produces the 4HZ system tick interrupt.
-*        Uses Timer A1, capture/control channel 0, vector 9,
-*        0xFFFA
+* \brief Timer ISR. Produces the 2HZ system tick interrupt.
+*        Uses Timer A0, capture/control channel 0, vector 9,
+*        0xFFF2
 * \ingroup ISR
 */
 #ifndef FOR_USE_WITH_BOOTLOADER
-#pragma vector=TIMER1_A0_VECTOR
+#pragma vector=TIMER0_A0_VECTOR
 #endif
-__interrupt void ISR_Timer1_A0(void) {
+__interrupt void ISR_Timer0_A0(void) {
 //  testing
 //  dbg_line[0]='#';
 //  dbg_uart_write(dbg_line, 1);
 
-    TA1CTL |= TACLR;
+    TA0CTL |= TACLR;
 
     // Increment on every interrupt
     ++ticks_per_second;
