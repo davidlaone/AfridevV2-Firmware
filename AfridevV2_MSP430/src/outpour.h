@@ -212,13 +212,21 @@ typedef enum padId_e {
     MAX_PAD = PAD5,     /** PAD5 is the max pad value */
 } padId_t;
 
-#define LS_VCC BIT0
-#define RXD BIT1
-#define TXD BIT2
-#define GSM_STATUS BIT4
-#define GSM_INT BIT5
-#define GSM_EN BIT6
-#define GSM_DCDC BIT7
+// Give names to the various port pin numbers
+#define LS_VCC BIT5         // Pin 2.5
+#define RXD BIT5			// Pin 3.5
+#define TXD BIT4			// Pin 3.4
+#define GSM_STATUS BIT5		// Pin 1.5
+#define GSM_INT BIT4		// Pin 1.4
+#define GSM_EN BIT4			// Pin 2.4
+#define GSM_DCDC BIT2		// Pin 1.2 - GPIO
+#define VBAT_GND BIT1		// Pin 1.1 - GPIO
+#define VBAT_MON BIT0		// Pin 2.0
+#define _1V8_EN BIT3		// Pin 1.3 - GPIO
+#define I2C_DRV BIT3		// Pin 2.3
+#define I2C_SDA BIT1		// Pin 3.1
+#define I2C_SCL BIT2		// Pin 3.2
+#define GPS_ON_OFF BIT2		// Pin 4.2
 
 /*******************************************************************************
 *  Centralized method for enabling and disabling MSP430 interrupts
@@ -245,6 +253,21 @@ static inline uint16_t getAndDisableSysTimerInterrupt(void) {
     TA1CCTL0 &= ~CCIE; // disable interrupt
     return current;    // return interrupt setting
 }
+
+#ifdef USE_UART_SIGNALS_FOR_GPIO
+static inline void setDebug0(void) {
+    P3OUT |= TXD;
+}
+static inline void clearDebug0(void) {
+    P3OUT &= ~TXD;
+}
+static inline void setDebug1(void) {
+    P3OUT |= RXD;
+}
+static inline void clearDebug1(void) {
+    P3OUT &= ~RXD;
+}
+#endif
 
 /*******************************************************************************
 *  Polling Delays
@@ -541,7 +564,7 @@ typedef struct  __attribute__((__packed__))timePacket_s {
     uint8_t year;
 } timePacket_t;
 
-void timerA1_init(void);
+void timerA0_init(void);
 void getBinTime(timePacket_t *tpP);
 uint8_t bcd_to_char(uint8_t bcdValue);
 uint32_t getSecondsSinceBoot(void);
