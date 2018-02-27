@@ -97,9 +97,9 @@
  */
 typedef struct __attribute__((__packed__))dailyLog_s {
     uint16_t litersPerHour[24];      /**< 48, 00-47 */
-    uint16_t padMax[6];              /**< 12, 48-59 */
-    uint16_t padMin[6];              /**< 12, 60-71 */
-    uint16_t padSubmerged[6];        /**< 12, 72-83 */
+    uint16_t padTargetAir[6];        /**< 12, 48-59 */
+    uint16_t padTargetWater[6];      /**< 12, 60-71 */
+    uint16_t padSubmergedCount[6];   /**< 12, 72-83 */
     uint16_t dailyLiters;            /**< 02, 84-85 */
     uint16_t unknowns;               /**< 02, 86-87 */
     uint8_t  redFlag;                /**< 01, 88 */
@@ -814,15 +814,15 @@ static void writeStatsToDailyLog(void) {
 
     // Write per PAD stats to flash
     for (i = 0; i < 6; i++) {
-        addr = 	(uint8_t *)&(dailyLogsP->padMax[i]);
+        addr = 	(uint8_t *)&(dailyLogsP->padTargetAir[i]);
         u16Val = waterSense_getPadStatsMax((padId_t)i);
         msp430Flash_write_int16(addr, u16Val);
 
-        addr = 	(uint8_t *)&(dailyLogsP->padMin[i]);
+        addr = 	(uint8_t *)&(dailyLogsP->padTargetWater[i]);
         u16Val = waterSense_padStatsMin((padId_t)i);
         msp430Flash_write_int16(addr, u16Val);
 
-        addr = 	(uint8_t *)&(dailyLogsP->padSubmerged[i]);
+        addr = 	(uint8_t *)&(dailyLogsP->padSubmergedCount[i]);
         u16Val = waterSense_getPadStatsSubmerged((padId_t)i);
         msp430Flash_write_int16(addr, u16Val);
 
