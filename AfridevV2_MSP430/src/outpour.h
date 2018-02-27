@@ -254,6 +254,7 @@ static inline uint16_t getAndDisableSysTimerInterrupt(void) {
     return current;    // return interrupt setting
 }
 
+// #define USE_UART_SIGNALS_FOR_GPIO
 #ifdef USE_UART_SIGNALS_FOR_GPIO
 static inline void setDebug0(void) {
     P3OUT |= TXD;

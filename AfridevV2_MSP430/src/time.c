@@ -84,7 +84,8 @@ extern uint8_t CAPSENSE_ACTIVE;
 /**
 * \brief Initialize and start timerA0 for the one second system 
 *        tick.  Uses Timer A0, capture/control channel 0, vector
-*        9, 0xFFF2
+*        9, 0xFFF2. Initialize to use ACLK which is running at
+*        32768 HZ (from external crystal).
 * \ingroup PUBLIC_API
 */
 void timerA0_init(void) {

@@ -142,7 +142,7 @@ void sysExec_exec(void) {
     storageMgr_init();
 
     // Start the timer interrupt
-    timerA1_init();
+    timerA0_init();
 
     // Enable the global interrupt
     enableGlobalInterrupt();
@@ -183,6 +183,7 @@ void sysExec_exec(void) {
                 currentFlowRateInMLPerSec = analyzeWaterMeasurementData();
             }
 
+#ifdef PRODUCTION_CODE
             // Record the water stats and initiate periodic communication
             storageMgr_exec(currentFlowRateInMLPerSec);
 
@@ -196,6 +197,7 @@ void sysExec_exec(void) {
             modemMgr_exec();     /* perform Low-level message processing */
             modemCmd_exec();     /* perform Low-level modem interface processing (again) */
             modemPower_exec();   /* Handle powering on and off the modem */
+#endif
 
             // A system reboot sequence is started when a firmware upgrade message
             // or system restart message is received. If a reboot sequence has started,
@@ -210,11 +212,13 @@ void sysExec_exec(void) {
                 }
             }
 
+#ifdef PRODUCTION_CODE
             // Two messages are transmitted shortly after the system starts:
             // The final assembly message and a monthly check-in message.
             if (!sysExecData.startUpMsg1WasSent || !sysExecData.startUpMsg2WasSent) {
                 startUpMessageCheck();
             }
+#endif
 
 #ifdef SEND_DEBUG_INFO_TO_UART
             // Only send debug data if the modem is not in use.
@@ -289,8 +293,10 @@ static uint16_t analyzeWaterMeasurementData(void) {
         // once every two seconds.
 
         if (sysExecData.noWaterMeasCount < ((NO_WATER_HF_TO_LF_TIME_IN_SECONDS >> SECONDS_PER_TREND_SHIFT)-1)) {
-            // The noWaterMeasCount is incremented once every two seconds. 
+            // The noWaterMeasCount is incremented once every two seconds.
             sysExecData.noWaterMeasCount++;
+            // FOR DEBUG ONLY!!!! - DON'T INCREMENT COUNTER
+            sysExecData.noWaterMeasCount=0;
         } else {
             // No water has been detected for at least NO_WATER_HF_TO_LF_TIME_IN_SECONDS.
             // Stay in the LF water measurement mode in order to save power.
