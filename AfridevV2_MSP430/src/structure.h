@@ -89,7 +89,7 @@ extern const struct Sensor pad_sensors;
 
 // OSCILLATOR DEFINITIONS
 //#define RO_COMPAp_TA0_WDTp  		64
-#define RO_PINOSC_TA0_WDTp  		65
+//#define RO_PINOSC_TA0_WDTp  		65
 //#define RO_PINOSC_TA0       		66
 //#define RO_COMPAp_TA1_WDTp  		67
 //#define RO_COMPB_TA0_WDTA			68
@@ -100,7 +100,7 @@ extern const struct Sensor pad_sensors;
 //#define RO_CSIO_TA2_WDTA			73
 //#define RO_CSIO_TA2_TA3           74
 //#define RO_PINOSC_TA1_WDTp  		75
-//#define RO_PINOSC_TA1_TB0			76
+#define RO_PINOSC_TA1_TB0			76
 
 // RC DEFINITIONS
 //#define RC_PAIR_TA0       		01

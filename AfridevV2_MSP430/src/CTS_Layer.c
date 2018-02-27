@@ -67,13 +67,11 @@
  * @param   counts Address to where the measurements are to be written
  * @return  none
  ******************************************************************************/
-void TI_CAPT_Raw(const struct Sensor *groupOfElements, uint16_t *counts)
-{
-// We use TA0 for Afridev1
-#ifdef RO_PINOSC_TA0_WDTp
-    if (groupOfElements->halDefinition == RO_PINOSC_TA0_WDTp)
+void TI_CAPT_Raw(const struct Sensor *groupOfElements, uint16_t *counts) {
+#ifdef RO_PINOSC_TA1_TB0
+    if (groupOfElements->halDefinition == RO_PINOSC_TA1_TB0)
     {
-        TI_CTS_RO_PINOSC_TA0_WDTp_HAL(groupOfElements, counts);
+        TI_CTS_RO_PINOSC_TA1_TB0_HAL(groupOfElements, counts);
     }
 #endif
 

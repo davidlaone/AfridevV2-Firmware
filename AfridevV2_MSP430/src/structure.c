@@ -115,17 +115,18 @@ const struct Element pad5 = {
 //PinOsc Wheel
 const struct Sensor pad_sensors =
 {
-	.halDefinition = RO_PINOSC_TA0_WDTp,
-	.numElements = 6,
-	.baseOffset = 0,
-	// Pointer to elements
-	.arrayPtr[0] = &pad0,         // point to pad0
-	.arrayPtr[1] = &pad1,
-	.arrayPtr[2] = &pad2,
-	.arrayPtr[3] = &pad3,
-	.arrayPtr[4] = &pad4,
-	.arrayPtr[5] = &pad5,
-	// Timer Information
-	.measGateSource = GATE_WDT_ACLK,     //  0->SMCLK, 1-> ACLK
-	.accumulationCycles = WDTp_GATE_512    //64 - Default
+    .halDefinition = RO_PINOSC_TA1_TB0, 
+    .numElements = 6,
+    .baseOffset = 0,
+    // Pointer to elements
+    .arrayPtr[0] = &pad0,                    // point to pad0
+    .arrayPtr[1] = &pad1,
+    .arrayPtr[2] = &pad2,
+    .arrayPtr[3] = &pad3,
+    .arrayPtr[4] = &pad4,
+    .arrayPtr[5] = &pad5,
+    // Timer Information
+    .sourceScale = TIMER_SOURCE_DIV_0,       //  No divider
+    .measGateSource = TIMER_ACLK,            //  0->SMCLK, 1-> ACLK
+    .accumulationCycles = 64                 //  Count for 64 cycles (at 32768HZ) = 1.953ms
 };

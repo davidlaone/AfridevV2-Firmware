@@ -80,54 +80,63 @@
 #include "CTS_HAL.h"
 #include "outpour.h"
 
-#ifdef RO_PINOSC_TA0_WDTp
+// This variable keeps track of active capsense, in case we try to process a
+// non-watchdog ISR. We want to make sure the chip goes back to sleep instead
+// of waking up and recording counts early
+uint8_t CAPSENSE_ACTIVE;
+
+#ifdef RO_PINOSC_TA1_TB0
 /*!
- *  @brief   RO method capactiance measurement with PinOsc IO, TimerA0, and WDT+
+ *  ======== TI_CTS_RO_PINOSC_TA1_TB0_HAL ========
+ *  @brief   RO method capacitance measurement using PinOsc IO, TimerA1, and
+ *           TimerB0
  *
- *  \n       Schematic Description: 
- * 
+ *  \n       Schematic Description:
+ *
  *  \n       element-----+->Px.y
- * 
- *  \n       The WDT+ interval represents the measurement window.  The number of 
- *           counts within the TA0R that have accumulated during the measurement
- *           window represents the capacitance of the element.
- * 
- *  @param   group Pointer to the structure describing the Sensor to be measured
- *  @param   counts Pointer to where the measurements are to be written
+ *
+ *  \n       The TimerA1 interval represents the gate (measurement) time.  The
+ *           number of oscillations that have accumulated in TA1R during the
+ *           measurement time represents the capacitance of the element.
+ *
+ *  @param group  pointer to the sensor to be measured
+ *  @param counts pointer to where the measurements are to be written
  *  @return  none
  *
  *  Additional Details:
- *  This driver works by connecting timerA1 to a capacitive element, and then counting how many counts that timer counts
- *  in a single watchdog interval. We enter Low Power Mode while counting, and the watchdog ISR wakes us up and tells us to
- *  record the total counts.
+ *
+ *  This driver works by connecting timerA1 to a capacitive element, and then
+ *  counting how many counts that timer counts in a single watchdog interval.
+ *  We enter Low Power Mode while counting, and the watchdog ISR wakes us up
+ *  and tells us to record the total counts.
  */
-
-uint8_t CAPSENSE_ACTIVE; // This keeps track of active capsense, in case we try to process a non-watchdog ISR,
-						 // we want to make sure the chip goes back to sleep instead of waking up and recording counts early
-						 // See: ISRs in debugUart.c and modemCmd.c
-void TI_CTS_RO_PINOSC_TA0_WDTp_HAL(const struct Sensor *group, uint16_t *counts)
-{
+void TI_CTS_RO_PINOSC_TA1_TB0_HAL(const struct Sensor *group, uint16_t *counts) {
     uint8_t i = 0;
 
-//** Context Save
-//  Status Register:
-//  WDTp: IE1, WDTCTL
-//  TIMERA0: TA0CTL, TA0CCTL1
-//  Ports: PxSEL, PxSEL2
+    /*!
+     *  Allocate Context Save Variables
+     *  Status Register: GIE bit only
+     *  TIMERA0: TA1CTL, TA1CCTL1, TA1CCR1
+     *  TIMERB1: TB0CTL, TB0CCTL0, TB0CCR0
+     *  Ports: PxSEL, PxSEL2
+     */
     uint8_t contextSaveSR;
-    uint8_t contextSaveIE1;
-    uint16_t contextSaveWDTCTL;
-    uint16_t contextSaveTA0CTL, contextSaveTA0CCTL1, contextSaveTA0CCR1;
+    uint16_t contextSaveTA1CTL, contextSaveTA1CCTL1, contextSaveTA1CCR1;
+    uint16_t contextSaveTB0CTL, contextSaveTB0CCTL0, contextSaveTB0CCR0;
     uint8_t contextSaveSel, contextSaveSel2;
 
+    /*
+     *  Perform context save of registers used except port registers which are
+     *  saved and restored within the for loop as each element within the
+     *  sensor is measured.
+     */
     contextSaveSR = __get_SR_register();
-    contextSaveIE1 = IE1;
-    contextSaveWDTCTL = WDTCTL;
-    contextSaveWDTCTL &= 0x00FF;
-    contextSaveWDTCTL |= WDTPW;
-    contextSaveTA0CTL = TA0CTL;
-    contextSaveTA0CCTL1 = TA0CCTL1;
-    contextSaveTA0CCR1 = TA0CCR1;
+    contextSaveTA1CTL = TA1CTL;
+    contextSaveTA1CCTL1 = TA1CCTL1;
+    contextSaveTA1CCR1 = TA1CCR1;
+    contextSaveTB0CTL = TB0CTL;
+    contextSaveTB0CCTL0 = TB0CCTL0;
+    contextSaveTB0CCR0 = TB0CCR0;
 
     CAPSENSE_ACTIVE = 1;
 
@@ -136,85 +145,105 @@ void TI_CTS_RO_PINOSC_TA0_WDTp_HAL(const struct Sensor *group, uint16_t *counts)
     // capacitive touch layer.
 
     // Configure and Start Timer
-    TA0CTL = TASSEL_3;// + MC_2;                              // INCLK, cont mode // changed from TASSEL_3
-    //TA0CCTL1 = CM_3 + CCIS_2 + CAP;                        // Pos&Neg,GND,Cap
-    IE1 |= WDTIE;                                          // enable WDT interrupt
-    for (i = 0; i < (group->numElements); i++)
-    {
-        // Context Save
-    	contextSaveSel = *((group->arrayPtr[i])->inputPxselRegister);
-    	contextSaveSel2 = *((group->arrayPtr[i])->inputPxsel2Register);
+    TA1CTL = TASSEL_3; // + MC_2;              // INCLK, cont mode
+                       // TA0CCTL1 = CM_3 + CCIS_2 + CAP;         // Pos&Neg,GND,Cap
 
-        // Configure Ports for relaxation oscillator (in English... enable Capacitive sensing)
-    	*((group->arrayPtr[i])->inputPxselRegister) &= ~((group->arrayPtr[i])->inputBits);
-    	*((group->arrayPtr[i])->inputPxsel2Register) |= ((group->arrayPtr[i])->inputBits);
+    /*
+     *  TimerB0 is the gate (measurement interval) timer.  The number of
+     *  oscillations counted within the gate interval represents the measured
+     *  capacitance.
+     */
+    TB0CCR0 = (group->accumulationCycles);
+    // Establish source and scale of timerA1, but halt the timer.
+    TB0CTL = group->measGateSource + group->sourceScale;
+    TB0CCTL0 = CCIE;  // Enable Interrupt when timer counts to TB0CCR0.
 
-        //**  Setup Gate Timer ********************************************************
-        // Set duration of sensor measurment
-        //WDTCTL = (WDTPW+WDTTMSEL+group->measGateSource+group->accumulationCycles);
-        WDTCTL = (WDTPW + WDTTMSEL + (group->measGateSource) + (group->accumulationCycles)); // wdt comes from aclk (gate source), aclk/512 -> use aclk for capsense
-        TA0CTL |= (MC_2);                     // Clear Timer_A TAR
-        TA0R = 0;
-        TA0CTL &= ~TAIFG;
+    // Loop for each defined element
+    for (i = 0; i < (group->numElements); i++) {
 
-        if (group->measGateSource == GATE_WDT_ACLK)
+        // Context Save Port Registers
+        contextSaveSel = *((group->arrayPtr[i])->inputPxselRegister);
+        contextSaveSel2 = *((group->arrayPtr[i])->inputPxsel2Register);
+
+        // Configure Ports for relaxation oscillator
+        *((group->arrayPtr[i])->inputPxselRegister) &= ~((group->arrayPtr[i])->inputBits);
+        *((group->arrayPtr[i])->inputPxsel2Register) |= ((group->arrayPtr[i])->inputBits);
+
+        TA1CTL |= (MC_2);  // Clear Timer_A TAR
+        TA1R = 0;
+        TA1CTL &= ~TAIFG;
+
+        // Clear and start Gate Timer
+        TB0CTL |= (TACLR + MC_1);
+
+        /*!
+         *  The measGateSource represents the gate source for timer TIMERA1,
+         *  which can be sourced from TACLK, ACLK, SMCLK, or INCLK.  The
+         *  interrupt handler is defined in TIMER1_A0_VECTOR, which simply
+         *  clears the low power mode bits in the Status Register before
+         *  returning from the ISR.
+         */
+        if (group->measGateSource == TIMER_ACLK)
         {
-            __bis_SR_register(LPM3_bits + GIE);            // Wait for WDT interrupt
-        }
-        else
+            __bis_SR_register(LPM3_bits + GIE);  // Enable GIE and wait for ISR
+        } else
         {
-            __bis_SR_register(LPM0_bits + GIE);            // Wait for WDT interrupt
+            __bis_SR_register(LPM0_bits + GIE);  // Enable GIE and wait for ISR
         }
-        // every other pad the reference signal is alternated between GND and VCC (this causes rising and falling trigger events)
+
+        // every other pad the reference signal is alternated between GND and VCC
+        // (this causes rising and falling trigger events)
         // this causes a transition that starts the calculation of capacitance
-        TA0CTL &= ~MC_2;                    // Stop Timer_A TAR
-        if(TA0CTL & TAIFG)
+        TA1CTL &= ~MC_2;    // Stop Timer_A TAR
+        TB0CTL &= ~MC_1;    // Halt Timer_B
+        if (TA1CTL & TAIFG)
         {
-        	// check for timer overflow
-        	counts[i] = 0xFFFF;
-        }
-        else
+            // check for timer overflow
+            counts[i] = 0xFFFF;
+        } else
         {
-        	counts[i] = TA0R;   // Save result, used to be from TA0CCR1 ^= CCIS0;
+            counts[i] = TA1R;   // Save result, used to be from TA1CCR1 ^= CCIS0;
         }
-        WDTCTL = WDTPW + WDTHOLD;                          // Stop watchdog timer
-                                                           // Context Restore
+
         // Context Restore
         *((group->arrayPtr[i])->inputPxselRegister) = contextSaveSel;
         *((group->arrayPtr[i])->inputPxsel2Register) = contextSaveSel2;
     }
-    // End Sequence
-    // Context Restore
-    __bis_SR_register(contextSaveSR);
+
+    /*
+     *  Context restore GIE within Status Register and all timer registers
+     *  used.
+     */
     if (!(contextSaveSR & GIE))
     {
-        __bic_SR_register(GIE);                            //
+        __bic_SR_register(GIE);
     }
-    IE1 = contextSaveIE1;
-    WDTCTL = contextSaveWDTCTL;
-    TA0CTL = contextSaveTA0CTL;
-    TA0CCTL1 = contextSaveTA0CCTL1;
-    TA0CCR1 = contextSaveTA0CCR1;
+    TA1CTL = contextSaveTA1CTL;
+    TA1CCTL1 = contextSaveTA1CCTL1;
+    TA1CCR1 = contextSaveTA1CCR1;
+    TB0CTL = contextSaveTB0CTL;
+    TB0CCTL0 = contextSaveTB0CCTL0;
+    TB0CCR0 = contextSaveTB0CCR0;
 
     CAPSENSE_ACTIVE = 0;
 }
 #endif
 
-#ifdef WDT_GATE
-/**
- *  ======== watchdog_timer ========
- *  @ingroup ISR
- *  @brief  WDT_ISR Used as part of the Capacitive processing.
- *          This ISR clears the LPM bits found in the Status
- *          Register which result in the processing leaving low
- *          power mode.
+#ifdef TIMERB0_GATE
+/*!
+ *  ======== TIMER0_B0_ISR ========
+ *  @ingroup ISR_GROUP
+ *  @brief  TIMER0_B0_ISR
+ *
+ *  This ISR clears the LPM bits found in the Status Register (SR/R2).
+ *
+ *  @param none
+ *  @return none
  */
 #ifndef FOR_USE_WITH_BOOTLOADER
-#pragma vector=WDT_VECTOR
+#pragma vector=TIMERB0_VECTOR
 #endif
-__interrupt void watchdog_timer(void)
-{
-    __bic_SR_register_on_exit(LPM3_bits);                  // Exit LPM3 on reti
+__interrupt void TIMERB0_ISR(void) {
+    __bic_SR_register_on_exit(LPM3_bits);  // Exit LPM3 on reti
 }
 #endif
-
