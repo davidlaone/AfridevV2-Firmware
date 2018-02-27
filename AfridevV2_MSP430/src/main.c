@@ -119,29 +119,27 @@ __interrupt void Dummy_Isr(void)
  *     match the declaration in Boot's Vector_Table
  */
 
-#   ifdef __IAR_SYSTEMS_ICC__
-#       pragma location="APP_PROXY_VECTORS"
-__root const uint16_t ProxyVectorTable[] =
-#   elif defined (__TI_COMPILER_VERSION__)
-#       pragma DATA_SECTION(ProxyVectorTable, ".APP_PROXY_VECTORS")
-#       pragma RETAIN(ProxyVectorTable)
+#pragma DATA_SECTION(ProxyVectorTable, ".APP_PROXY_VECTORS")
+#pragma RETAIN(ProxyVectorTable)
 const uint16_t ProxyVectorTable[] =
-#   endif
 {
-    0x4030, (uint16_t) Dummy_Isr,           // APP_PROXY_VECTOR(0) P1
-    0x4030, (uint16_t) Dummy_Isr,           // APP_PROXY_VECTOR(1) P2
-    0x4030, (uint16_t) Dummy_Isr,           // APP_PROXY_VECTOR(2) ADC10
-    0x4030, (uint16_t) USCI0TX_ISR,         // APP_PROXY_VECTOR(3) USCI I2C TX/RX
-    0x4030, (uint16_t) USCI0RX_ISR,         // APP_PROXY_VECTOR(4) USCI I2C STAT
-    0x4030, (uint16_t) Dummy_Isr,           // APP_PROXY_VECTOR(5) TA0_1
-    0x4030, (uint16_t) Dummy_Isr,           // APP_PROXY_VECTOR(6) T0_0
-    0x4030, (uint16_t) watchdog_timer,      // APP_PROXY_VECTOR(7) WDT
-    0x4030, (uint16_t) Dummy_Isr,           // APP_PROXY_VECTOR(8) COMP_A
-    0x4030, (uint16_t) Dummy_Isr,           // APP_PROXY_VECTOR(9) TA1_1
-    0x4030, (uint16_t) ISR_Timer1_A0,       // APP_PROXY_VECTOR(10) TA1_0
-    0x4030, (uint16_t) Dummy_Isr,           // APP_PROXY_VECTOR(11) NMI
+    0x4030, (uint16_t)Dummy_Isr,           // 0xFFE0 APP_PROXY_VECTOR(0)  TA1_1
+    0x4030, (uint16_t)Dummy_Isr,           // 0xFFE2 APP_PROXY_VECTOR(1)  TA1_0
+    0x4030, (uint16_t)Dummy_Isr,           // 0xFFE4 APP_PROXY_VECTOR(2)  P1
+    0x4030, (uint16_t)Dummy_Isr,           // 0xFFE6 APP_PROXY_VECTOR(3)  P2
+    0x4030, (uint16_t)Dummy_Isr,           // 0xFFEA APP_PROXY_VECTOR(4)  ADC10
+    0x4030, (uint16_t)USCI0TX_ISR,         // 0xFFEC APP_PROXY_VECTOR(5)  USCI I2C TX/RX
+    0x4030, (uint16_t)USCI0RX_ISR,         // 0xFFEE APP_PROXY_VECTOR(6)  USCI I2C STAT
+    0x4030, (uint16_t)Dummy_Isr,           // 0xFFF0 APP_PROXY_VECTOR(7)  TA0_1
+    0x4030, (uint16_t)ISR_Timer0_A0,       // 0xFFF2 APP_PROXY_VECTOR(8)  TA0_0
+    0x4030, (uint16_t)Dummy_Isr,           // 0xFFF4 APP_PROXY_VECTOR(9)  WDT
+    0x4030, (uint16_t)Dummy_Isr,           // 0xFFF6 APP_PROXY_VECTOR(10) COMP_A
+    0x4030, (uint16_t)Dummy_Isr,           // 0xFFF8 APP_PROXY_VECTOR(11) TB0_1
+    0x4030, (uint16_t)TIMERB0_VECTOR,      // 0xFFFA APP_PROXY_VECTOR(12) TB0_0
+    0x4030, (uint16_t)Dummy_Isr,           // 0xFFFC APP_PROXY_VECTOR(13) NMI
 };
 #endif
+
 
 /******************************
  * Doxygen Support Defines 
