@@ -66,19 +66,39 @@ void hal_sysClockInit(void) {
 */
 void hal_pinInit(void) {
 
-    // I/O Control for UART
-    P1SEL  |= RXD + TXD; // P1.1 = RXD, P1.2=TXD
-    P1SEL2 |= RXD + TXD; // P1.1 = RXD, P1.2=TXD
+    P1DIR  |= VBAT_GND + _1V8_EN + GSM_DCDC; // Output
+                                             // GSM_INT and GSM_STAT are GPIO inputs, set P1DIR to 0
+    P1DIR  &= ~(GSM_INT + GSM_STATUS);
 
-    P1DIR  |= GSM_EN + GSM_DCDC + LS_VCC;
-    P1OUT  &= 0x00;
+    // VBAT_GND controls VBAT sensing, default off (Active LOW)
+    // GSM_DCDC controls (U4) default off (Active HIGH)
+    // _1V8_EN controls (U5) default off (Active HIGH)
+    P1OUT  |= VBAT_GND;
 
-    P2DIR |= BIT7; // P2.0-2.5 are pinosc, 6/7 are XIN/XOUT
-    P2OUT &= 0x00; // All P2.x reset
+    // VBAT_MON adc pin initializtion should go here
+
     P2SEL  |= BIT6 + BIT7; // configuring crystal XIN for P2.6
 
-    P3DIR |= 0xFF; // All P3.x outputs
-    P3OUT &= 0x00; // All P3.x reset
+    // BIT0 = ACLK out on pin 2.0
+    // I2C_DRV is output GPIO (default hi-z) Controls I2C
+    // GSM_PWR is output GPIO (default off) On when GPS on
+    // LS_VCC is output GPIO (default off) On when modem on
+    // BIT7 is for crystal XOUT on P2.7
+    P2DIR  |= I2C_DRV + GSM_EN + LS_VCC + BIT7;
+
+
+#ifdef USE_UART_SIGNALS_FOR_GPIO
+    // If using UART signals for timing GPIO outputs
+    P3DIR  |= RXD + TXD; // P1.1 = RXD, P1.2=TXD
+#else
+    // UART Tx - to debug UART in debug mode, to modem in modem mode
+    P3SEL  |= TXD;
+    // UART Rx
+    P3SEL2 |= RXD;
+#endif
+    P3DIR  |= VBAT_GND + _1V8_EN;
+
+    P4DIR  |= GPS_ON_OFF;
 }
 
 /**
