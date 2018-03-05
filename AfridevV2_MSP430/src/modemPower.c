@@ -1,5 +1,5 @@
 /** 
- * @file modemLink.c
+ * @file modemPower.c
  * \n Source File
  * \n Outpour MSP430 Firmware
  * 
@@ -62,7 +62,7 @@ static void modemPowerUpStateMachine(void);
 
 /**
 * \brief Executive that manages sequencing the modem power up 
-*        and power down.  Called on the 1 second tick rate to
+*        and power down.  Called on the 2 second tick rate to
 *        handle bringing the modem up and down.
 * \ingroup EXEC_ROUTINE
 */

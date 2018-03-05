@@ -140,6 +140,9 @@ void sysExec_exec(void) {
     otaMsgMgr_init();
     waterSense_init();
     storageMgr_init();
+    gpsMsg_init();
+    gpsPower_init();
+    gps_init();
 
     // Start the timer interrupt
     timerA0_init();
@@ -197,6 +200,9 @@ void sysExec_exec(void) {
             modemMgr_exec();     /* perform Low-level message processing */
             modemCmd_exec();     /* perform Low-level modem interface processing (again) */
             modemPower_exec();   /* Handle powering on and off the modem */
+            gpsMsg_exec();       /* Handle GPS message processing */
+            gpsPower_exec();     /* Handle power on and off the GPS device */
+            gps_exec();          /* Manage GPS processing */
 #endif
 
             // A system reboot sequence is started when a firmware upgrade message

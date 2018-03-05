@@ -231,11 +231,10 @@ static inline void disable_UART_rx(void);
  **************************/
 
 /**
-* \brief Modem Cmd executive.  Called on the 1 second system 
-*        tick to manage a single modem transmit/receive
-*        transaction.  If no transaction is in progress, just
-*        returns.  Detects when a transaction is timeout or
-*        completed successfully.
+* \brief Modem Cmd executive.  Called every 2 seconds to manage 
+*        a single modem transmit/receive transaction. If no
+*        transaction is in progress, just returns. Detects when
+*        a transaction is timeout or completed successfully.
 * \ingroup EXEC_ROUTINE
 */
 void modemCmd_exec(void) {
@@ -761,12 +760,12 @@ __interrupt void USCI0TX_ISR(void) {
 
 /**
 * \brief Uart Receive Interrupt Service Routine.
+* \note see uartIsr.c for the top level UART RX interrupt
+*       routine.
+*
 * \ingroup ISR
 */
-#ifndef FOR_USE_WITH_BOOTLOADER
-#pragma vector=USCIAB0RX_VECTOR
-#endif
-__interrupt void USCI0RX_ISR(void) {
+void modemCmd_isr(void) {
 
     bool done = false;
     uint8_t rxByte = UCA0RXBUF;

@@ -327,7 +327,7 @@ bool checkForApplicationRecord(void);
  */
 typedef struct modemCmdWriteData_s {
     outpour_modem_command_t cmd; /**< the modem command */
-    MessageType_t payloadMsgId;  /**< the payload type (Cascade message type) */
+    MessageType_t payloadMsgId;  /**< the payload type (Afridev message type) */
     uint8_t *payloadP;           /**< the payload pointer (if any) */
     uint16_t payloadLength;      /**< size of the payload in bytes */
     uint16_t payloadOffset;      /**< for receiving partial data */
@@ -410,6 +410,7 @@ void modemCmd_read(modemCmdReadData_t *readDataP);
 bool modemCmd_isResponseReady(void);
 bool modemCmd_isError(void);
 bool modemCmd_isBusy(void);
+void modemCmd_isr(void);
 
 /*******************************************************************************
 * modemPower.c
@@ -583,7 +584,10 @@ void storageMgr_setTransmissionRate(uint8_t transmissionRateInDays);
 uint16_t storageMgr_getNextDailyLogToTransmit(uint8_t **dataPP);
 void storageMgr_sendDebugDataToUart(void);
 uint8_t storageMgr_getStorageClockInfo(uint8_t *bufP);
+uint8_t storageMgr_getStorageClockHour(void);
 uint8_t storageMgr_prepareMsgHeader(uint8_t *dataPtr, uint8_t payloadMsgId);
+void sendMonthlyCheckin(void);
+void sendActivatedMessage(void);
 
 /*******************************************************************************
 * waterSense.c
@@ -648,4 +652,50 @@ typedef struct appRecord_e {
     uint16_t magic2;
     uint16_t crc16;
 } appRecord_t;
+
+/*******************************************************************************
+* MsgSchedule.c 
+*******************************************************************************/
+void msgSched_init(void);
+void msgSched_exec(void);
+void msgSched_scheduleDailyWaterLogMessage(void);
+void msgSched_scheduleActivatedMessage(void);
+void msgSched_scheduleMonthlyCheckInMessage(void);
+void msgSched_scheduleGpsMessage(void);
+void msgSched_scheduleGpsMeasurement(void);
+
+/*******************************************************************************
+* gps.c 
+*******************************************************************************/
+void gps_init(void);
+void gps_exec(void);
+void gps_start (void);
+void gps_stop (void);
+bool gps_isActive(void);
+
+/*******************************************************************************
+* gpsPower.c 
+*******************************************************************************/
+void gpsPower_exec(void);
+void gpsPower_init(void);
+void gpsPower_restart(void);
+void gpsPower_powerDownGPS(void);
+bool gpsPower_isGpsOn(void);
+bool gpsPower_isGpsOnError(void);
+uint16_t gpsPower_getGpsOnTimeInSecs(void);
+
+/*******************************************************************************
+* gpsMsg.c 
+*******************************************************************************/
+void gpsMsg_init(void);
+void gpsMsg_exec(void);
+bool gpsMsg_start(void);
+void gpsMsg_stop(void);
+bool gpsMsg_isActive(void);
+bool gpsMsg_isError(void);
+bool gpsMsg_gotRmcMessage(void);
+uint8_t gpsMsg_getRmcMesssageLength(void);
+bool gpsMsg_gotDataValidRmcMessage(void);
+uint8_t gpsMsg_getRmcMessage(char *bufP);
+void gpsMsg_isr(void);
 

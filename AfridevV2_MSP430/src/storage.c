@@ -1,10 +1,13 @@
 /** 
  * @file storage.c
  * \n Source File
- * \n Cascade MSP430 Firmware
+ * \n Afridev MSP430 Firmware
  * 
  * \brief Routines to support processing, storing and 
- *        transmitting water data statistics.
+ *        transmitting water data statistics. This module
+ *        maintains the storage clock which is an independent
+ *        clock from the GMT time. The storage clock is used to
+ *        schedule data storage and message transmission.
  */
 
 #include "outpour.h"
@@ -180,14 +183,8 @@ typedef struct storageData_s {
  *  of the week.  The day's water stats are stored at the end of each
  *  day (midnight of the following day).
  */
-#ifdef __IAR_SYSTEMS_ICC__
-#pragma constseg=week1Data
-static const weeklyLog_t week1Log;
-#pragma constseg=default
-#elif defined (__TI_COMPILER_VERSION__)
 #pragma DATA_SECTION(week1Log, ".week1Data")
 static const weeklyLog_t week1Log;
-#endif
 
 #define WEEKLY_LOG_ADDRESS_IN_FLASH ((weeklyLog_t *)&week1Log)
 
@@ -219,8 +216,6 @@ static void markDailyLogAsTransmitted(uint8_t dayOfTheWeek);
 static bool wasDailyLogTransmitted(uint8_t dayOfTheWeek);
 static void checkAndTransmitMonthlyCheckin(void);
 static void checkAndTransmitDailyLogs(bool overrideTransmissionRate);
-static void sendMonthlyCheckin(void);
-static void sendActivatedMessage(void);
 static void clearAlignStats(void);
 
 /***************************
@@ -291,6 +286,13 @@ void storageMgr_exec(uint16_t currentFlowRateInMLPerSec) {
     }
     if (stData.storageTime_hours == TOTAL_HOURS_IN_A_DAY) {
         // Record data
+        // The recordLastDay does a number of house-keeping chores:
+        // (1) If the unit is activated, it stores today's water log 
+        // states to flash.
+        // (2) It potentially starts the transmission of
+        // the daily water log message. 
+        // (3) It will also potentially activate the Sensor 
+        // and starts the Activate message transmission.
         recordLastDay();
         // Update Time
         stData.storageTime_dayOfWeek++;
@@ -387,13 +389,13 @@ void storageMgr_resetWeeklyLogs(void) {
 }
 
 /**
- * \brief This function is used to identify the next daily that
- *        is ready to transmit.  If there is a log ready for
- *        transmit, the pointer and size are returned. If no
- *        daily log is ready for transmit, the function returns
- *        0.  If a daily log pointer is returned, then that
- *        daily log is marked as being transmitted in the weekly
- *        info meta data.
+ * \brief This function is used to identify the next daily water
+ *        log that is ready to transmit.  If there is a log
+ *        ready for transmit, the pointer and size are returned.
+ *        If no daily log is ready for transmit, the function
+ *        returns 0.  If a daily log pointer is returned, then
+ *        that daily log is marked as being transmitted in the
+ *        weekly info meta data.
  * \brief To Determine if a daily log is ready or has been 
  *        transmitted, it looks at the weekly info meta data
  *        associated with each weekly log.  Status bits are
@@ -461,32 +463,6 @@ uint16_t storageMgr_getNextDailyLogToTransmit(uint8_t **dataPP) {
     return length;
 }
 
-#if 0
-/**
-* \brief Return the total number of daily logs that are ready to 
-*        transmit for the specified week.
-* 
-* @return uint8_t Total logs ready to transmit for the specified
-*         week.
-*/
-uint8_t storageMgr_getNumDailyLogsToTransmit(uint8_t weeklyLogNum) {
-    uint8_t i;
-    uint8_t numOfDailyLogsReadyToTransmit = 0;
-    // Loop for each day of the week.  Count the total number of daily logs
-    // that are ready and have not been transmitted.
-    for (i = 0; i < TOTAL_DAYS_IN_A_WEEK; i++) {
-        // Get the flags to check if daily log is ready
-        // and has not yet been transmitted.
-        bool logReady = isDailyLogReady(i);
-        bool wasTransmitted = wasDailyLogTransmitted(i);
-        if (logReady && !wasTransmitted) {
-            numOfDailyLogsReadyToTransmit++;
-        }
-    }
-    return numOfDailyLogsReadyToTransmit;
-}
-#endif
-
 /**
 * \brief Send debug information to the uart.  
 * \ingroup PUBLIC_API
@@ -539,6 +515,15 @@ uint8_t storageMgr_getStorageClockInfo(uint8_t *bufP) {
 }
 
 /**
+* \brief Get the storage clock hour.
+* 
+* @return uint8_t Returns 0 - 23. 
+*/
+uint8_t storageMgr_getStorageClockHour(void) {
+    return stData.storageTime_hours;
+}
+
+/**
 * \brief Initialize the header portion of an outgoing message.
 * 
 * @param dataPtr  The buffer to store the header data
@@ -585,6 +570,36 @@ uint8_t storageMgr_prepareMsgHeader(uint8_t *dataPtr, uint8_t payloadMsgId) {
     return (sizeof(packetHeader_t));
 }
 
+/**
+* @brief Prepare and initiate sending the the monthly check-in 
+*        message.
+*/
+void sendMonthlyCheckin(void) {
+    // Get the shared buffer (we borrow the ota buffer)
+    uint8_t *payloadP = modemMgr_getSharedBuffer();
+    // Fill in the buffer with the standard message header
+    uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_CHECKIN);
+    // Initiate sending the monthly check-in message
+    dataMsgMgr_sendDataMsg(MSG_TYPE_CHECKIN, payloadP, payloadSize);
+}
+
+/**
+* @brief Prepare and initiate sending the the unit activated 
+*        message.
+*/
+void sendActivatedMessage(void) {
+    uint16_t dayLiterSum = stData.dayMilliliterSum / 1000;
+    // Get the shared buffer (we borrow the ota buffer)
+    uint8_t *payloadP = modemMgr_getSharedBuffer();
+    // Fill in the buffer with the standard message header
+    uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_ACTIVATED);
+    // Add total liters for the day
+    payloadP[payloadSize++] = dayLiterSum >> 8;
+    payloadP[payloadSize++] = dayLiterSum & 0xFF;
+    // Initiate sending the activated message
+    dataMsgMgr_sendDataMsg(MSG_TYPE_ACTIVATED, payloadP, payloadSize);
+}
+
 /*************************
  * Module Private Functions
  ************************/
@@ -619,9 +634,9 @@ static void checkAndTransmitDailyLogs(bool overrideTransmissionRate) {
         if (transmissionRateMet || overrideTransmissionRate) {
             // Its time to transmit the accumulated daily logs
             stData.totalDailyLogsTransmitted = 0;
-            // Start the process of sending the daily logs.
+            // Schedule sending the daily logs.
             // This will send the oldest daily log that is ready.
-            dataMsgMgr_sendDailyLogs();
+            msgSched_scheduleDailyWaterLogMessage();
         }
     }
 }
@@ -635,42 +650,13 @@ static void checkAndTransmitDailyLogs(bool overrideTransmissionRate) {
 static void checkAndTransmitMonthlyCheckin(void) {
     if ((stData.storageTime_week % 4) == 0) {
         if (!stData.daysActivated || !stData.haveSentDailyLogs) {
-            sendMonthlyCheckin();
+            // Schedule the monthly check-in message
+            msgSched_scheduleMonthlyCheckInMessage();
         }
         // Reset flag.  We want to identify whether at least one
         // daily log is sent in the upcoming month.
         stData.haveSentDailyLogs = false;
     }
-}
-
-/**
-* @brief Prepare and initiate sending the the monthly check-in 
-*        message.
-*/
-static void sendMonthlyCheckin(void) {
-    // Get the shared buffer (we borrow the ota buffer)
-    uint8_t *payloadP = modemMgr_getSharedBuffer();
-    // Fill in the buffer with the standard message header
-    uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_CHECKIN);
-    // Initiate sending the monthly check-in message
-    dataMsgMgr_sendDataMsg(MSG_TYPE_CHECKIN, payloadP, payloadSize);
-}
-
-/**
-* @brief Prepare and initiate sending the the unit activated 
-*        message.
-*/
-static void sendActivatedMessage(void) {
-    uint16_t dayLiterSum = stData.dayMilliliterSum / 1000;
-    // Get the shared buffer (we borrow the ota buffer)
-    uint8_t *payloadP = modemMgr_getSharedBuffer();
-    // Fill in the buffer with the standard message header
-    uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_ACTIVATED);
-    // Add total liters for the day
-    payloadP[payloadSize++] = dayLiterSum >> 8;
-    payloadP[payloadSize++] = dayLiterSum & 0xFF;
-    // Initiate sending the activated message
-    dataMsgMgr_sendDataMsg(MSG_TYPE_ACTIVATED, payloadP, payloadSize);
 }
 
 /**
@@ -730,9 +716,16 @@ static void recordLastHour(void) {
 }
 
 /**
-* \brief Write the pad statistics to the daily log.
-* \note If a new redFlag condition has occurred, then send the 
-*       daily logs completed for this week.
+* \brief This function does a number of house-keeping 
+*        chores.
+* \li If the Sensor is activated, write the pad statistics to 
+*     the flash.
+* \li If the Sensor is activated, start transmitting daily water
+*     logs if transmission rate in days has been met.
+* \li If the Sensor is not activated, clear water stats
+* \li If Sensor is not currently activated, but has met the 
+*     daily required liters to be activated, then activate the
+*     unit and send the Activation message.
 */
 static void recordLastDay(void) {
 
@@ -769,8 +762,8 @@ static void recordLastDay(void) {
     // If the number of measured daily liters exceeds the threshold, then consider
     // the unit activated.  Unit is considered not-activated if daysActivated is 0.
     if (!stData.daysActivated && (stData.dayMilliliterSum > DAILY_MILLILITERS_ACTIVATION_THRESHOLD)) {
-        // Send the activated status message
-        sendActivatedMessage();
+        // Schedule the activated status message
+        msgSched_scheduleActivatedMessage();
         // unit is now activated
         stData.daysActivated++;
     }
