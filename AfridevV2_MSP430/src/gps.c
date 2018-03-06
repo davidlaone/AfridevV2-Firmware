@@ -79,6 +79,8 @@ typedef struct gpsData_s {
  */
 gpsData_t gpsData;
 
+static const char *no_gps_data_string = "NO DATA\n";
+
 /*************************
  * Module Prototypes
  ************************/
@@ -240,5 +242,27 @@ static void gps_stateMachine(void) {
         // exit(0);
         break;
     }
+}
+
+/**
+* \brief Utility function to send the GPS message to the modem.
+*/
+void gps_sendGpsMessage(void) {
+    uint8_t *ptr = NULL;
+    // Get the shared buffer (we borrow the ota buffer)
+    uint8_t *payloadP = modemMgr_getSharedBuffer();
+    // Fill in the buffer with the standard message header
+    uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_GPS_LOCATION);
+    // Add the GPS data if available
+    ptr = &payloadP[payloadSize];
+    if (gpsMsg_gotRmcMessage()) {
+        payloadSize += gpsMsg_getRmcMessage(ptr);
+    } else {
+        // If a RMC string is not available, put the default no-data string.
+        strcpy((char *)ptr, no_gps_data_string);
+        payloadSize += sizeof(no_gps_data_string);
+    }
+    // Initiate sending the GPS message
+    dataMsgMgr_sendDataMsg(MSG_TYPE_GPS_LOCATION, payloadP, payloadSize);
 }
 

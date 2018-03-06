@@ -228,9 +228,12 @@ bool gpsMsg_gotDataValidRmcMessage(void) {
 * 
 * \ingroup PUBLIC_API
 */
-uint8_t gpsMsg_getRmcMessage(char *bufP) {
+uint8_t gpsMsg_getRmcMessage(uint8_t *bufP) {
+    uint8_t length = 0;
+    // Copy the RMC string to the buffer
     memcpy(bufP, rxBuf, gpsMsgData.rmcMsgLength);
-    return gpsMsgData.rmcMsgLength;
+    length = gpsMsgData.rmcMsgLength;
+    return length;
 }
 
 /*************************

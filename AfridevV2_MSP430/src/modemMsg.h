@@ -20,6 +20,7 @@ typedef enum messageType {
     MSG_TYPE_CHECKIN = 0x05,
     MSG_TYPE_SOS = 0x06,
     MSG_TYPE_ACTIVATED = 0x07,
+    MSG_TYPE_GPS_LOCATION = 0x08,
     // The following are debug messages for use with the PC
     // data logger.  These messages do not go to the Modem, and
     // are only sent when the Modem is powered off.

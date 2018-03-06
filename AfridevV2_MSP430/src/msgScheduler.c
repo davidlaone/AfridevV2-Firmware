@@ -68,7 +68,7 @@ void msgSched_exec(void) {
         // Get time from the storage module and check against 1:00AM
         if (storageMgr_getStorageClockHour() == 1) {
             // These message are mutually exclusive, and send one of the message types
-            // negates any other message types that may be schedule. There is a hierarchy of 
+            // negates any other message types that may be schedule. There is a hierarchy of
             // which message types take precedence.
             if (msgSchedData.sendDailyWaterLogs) {
                 // Start the process of sending the daily logs.
@@ -76,12 +76,12 @@ void msgSched_exec(void) {
                 dataMsgMgr_sendDailyLogs();
             } else if (msgSchedData.sendActivated) {
                 // Send the activated status message
-                sendActivatedMessage();
+                storageMgr_sendActivatedMessage();
             } else if (msgSchedData.sendMonthlyCheckIn) {
                 // Send the monthly check-in message
-                sendMonthlyCheckin();
+                storageMgr_sendMonthlyCheckin();
             } else if (msgSchedData.sendGps) {
-                // DO SOMETHING
+                gps_sendGpsMessage();
             }
             // Clear all scheduled message types
             // Sending one types negates any others that may be scheduled.

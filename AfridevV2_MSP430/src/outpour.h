@@ -586,8 +586,8 @@ void storageMgr_sendDebugDataToUart(void);
 uint8_t storageMgr_getStorageClockInfo(uint8_t *bufP);
 uint8_t storageMgr_getStorageClockHour(void);
 uint8_t storageMgr_prepareMsgHeader(uint8_t *dataPtr, uint8_t payloadMsgId);
-void sendMonthlyCheckin(void);
-void sendActivatedMessage(void);
+void storageMgr_sendMonthlyCheckin(void);
+void storageMgr_sendActivatedMessage(void);
 
 /*******************************************************************************
 * waterSense.c
@@ -672,6 +672,7 @@ void gps_exec(void);
 void gps_start (void);
 void gps_stop (void);
 bool gps_isActive(void);
+void gps_sendGpsMessage(void);
 
 /*******************************************************************************
 * gpsPower.c 
@@ -696,6 +697,6 @@ bool gpsMsg_isError(void);
 bool gpsMsg_gotRmcMessage(void);
 uint8_t gpsMsg_getRmcMesssageLength(void);
 bool gpsMsg_gotDataValidRmcMessage(void);
-uint8_t gpsMsg_getRmcMessage(char *bufP);
+uint8_t gpsMsg_getRmcMessage(uint8_t *bufP);
 void gpsMsg_isr(void);
 

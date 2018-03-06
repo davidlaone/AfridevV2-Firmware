@@ -574,7 +574,7 @@ uint8_t storageMgr_prepareMsgHeader(uint8_t *dataPtr, uint8_t payloadMsgId) {
 * @brief Prepare and initiate sending the the monthly check-in 
 *        message.
 */
-void sendMonthlyCheckin(void) {
+void storageMgr_sendMonthlyCheckin(void) {
     // Get the shared buffer (we borrow the ota buffer)
     uint8_t *payloadP = modemMgr_getSharedBuffer();
     // Fill in the buffer with the standard message header
@@ -587,7 +587,7 @@ void sendMonthlyCheckin(void) {
 * @brief Prepare and initiate sending the the unit activated 
 *        message.
 */
-void sendActivatedMessage(void) {
+void storageMgr_sendActivatedMessage(void) {
     uint16_t dayLiterSum = stData.dayMilliliterSum / 1000;
     // Get the shared buffer (we borrow the ota buffer)
     uint8_t *payloadP = modemMgr_getSharedBuffer();
