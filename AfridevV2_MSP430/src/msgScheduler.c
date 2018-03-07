@@ -3,14 +3,25 @@
  * \n Source File
  * \n Outpour MSP430 Firmware
  * 
- * \brief Schedule a message to be sent to the modem, and then 
- *        send the message at the scheduled time which is always
- *        at 1:00AM. Messages that are scheduled include the
- *        Activated message, Daily Water Log message and the
- *        Monthly Check-In message.
- * \brief Schedule a GPS measurement, and then start the GPS 
- *        measurement at the the schedule time which is always
- *        at 12:00AM.
+ * \brief Schedule a message to be sent to the modem. All 
+ *        scheduled messages are always sent at 1:00AM. Messages
+ *        that are scheduled include:
+ *        \li Activated message
+ *        \li Daily Water Log message
+ *        \li Monthly Check-In message
+ *        \li GPS Location message.
+ *
+ * \brief Schedule a GPS measurement. The GPS measurement is 
+ *        always performed at 12:00AM (if scheduled).
+ *  
+ * \note There are two ways to send a message to the modem: 
+ *       immediate and scheduled. To send a message immediately,
+ *       usd the dataMsgMgr_sendDataMsg function. To schedule a
+ *       message to be transmitted at 1:00AM, use the scheduler
+ *       API's. The scheduler kicks off the message transmission
+ *       session at 1:00AM if there are messages scheduled. The
+ *       scheduler calls the dataMsgMgr_startSendingScheduled
+ *       function to kick off the transmission session.
  */
 
 #include "outpour.h"
@@ -19,15 +30,18 @@
  * Module Data Definitions
  **************************/
 
+/**
+ * \typedef msgSchedData_t 
+ * \brief Define a structure to hold data for this module.
+ */
 typedef struct msgSchedData_s {
-    bool msgScheduled;
-    bool sendDailyWaterLogs;
-    bool sendActivated;
-    bool sendMonthlyCheckIn;
-    bool sendGps;
-    bool performGpsMeasurement;
+    bool msgScheduled;          /**< Flag to indicate there is at least one message scheduled */
+    bool sendDailyWaterLogs;    /**< Flag to indicate the daily water log message is scheduled */
+    bool sendActivated;         /**< Flag to indicate the Activated message is scheduled */
+    bool sendMonthlyCheckIn;    /**< Flag to indicate the Monthly Check-In message is scheduled */
+    bool sendGpsLocation;       /**< Flag to indicate the GPS Location message is scheduled */
+    bool performGpsMeasurement; /**< Flag to indicate the a GPS measurement is scheduled */
 } msgSchedData_t;
-
 
 /****************************
  * Module Data Declarations
@@ -67,33 +81,14 @@ void msgSched_exec(void) {
     if (msgSchedData.msgScheduled) {
         // Get time from the storage module and check against 1:00AM
         if (storageMgr_getStorageClockHour() == 1) {
-            // These message are mutually exclusive, and send one of the message types
-            // negates any other message types that may be schedule. There is a hierarchy of
-            // which message types take precedence.
-            if (msgSchedData.sendDailyWaterLogs) {
-                // Start the process of sending the daily logs.
-                // This will send the oldest daily log that is ready.
-                dataMsgMgr_sendDailyLogs();
-            } else if (msgSchedData.sendActivated) {
-                // Send the activated status message
-                storageMgr_sendActivatedMessage();
-            } else if (msgSchedData.sendMonthlyCheckIn) {
-                // Send the monthly check-in message
-                storageMgr_sendMonthlyCheckin();
-            } else if (msgSchedData.sendGps) {
-                gps_sendGpsMessage();
-            }
-            // Clear all scheduled message types
-            // Sending one types negates any others that may be scheduled.
+            // Start the transmission cycle
+            dataMsgMgr_startSendingScheduled();
+            // Clear flag
             msgSchedData.msgScheduled = false;
-            msgSchedData.sendDailyWaterLogs = false;
-            msgSchedData.sendActivated = false;
-            msgSchedData.sendMonthlyCheckIn = false;
-            msgSchedData.sendGps = false;
         }
     }
 
-    // Chedk if there a GPS measurement to perform
+    // Check if there a GPS measurement to perform
     if (msgSchedData.performGpsMeasurement) {
         // Get time from the storage module and check against 12:00AM
         if (storageMgr_getStorageClockHour() == 0) {
@@ -102,6 +97,52 @@ void msgSched_exec(void) {
             msgSchedData.performGpsMeasurement = false;
         }
     }
+}
+
+/**
+* \brief Retrieve the next message to transmit (if any). This 
+*        function is used by the msgData.c module to retrieve a
+*        scheduled message.
+* 
+* @param cmdWriteP Modem command write object that is filled in 
+*                  by this function with info on the payload to
+*                  send. If the length field is set to zero on
+*                  return, it indicates there is no message to
+*                  send.
+*/
+void msgSched_getNextMessageToTransmit(modemCmdWriteData_t *cmdWriteP) {
+    uint8_t *payloadP;
+    uint16_t payloadLength = 0;
+    MessageType_t payloadMsgId;
+    if (msgSchedData.sendDailyWaterLogs) {
+        // Start the process of sending the daily logs.
+        // Send the oldest daily log that is ready.
+        payloadLength = storageMgr_getNextDailyLogToTransmit(&payloadP);
+        payloadMsgId = MSG_TYPE_DAILY_LOG;
+        if (!payloadLength) {
+            msgSchedData.sendDailyWaterLogs = false;
+        }
+    } else if (msgSchedData.sendActivated) {
+        // Retrieve the activated message payload
+        payloadLength = storageMgr_getActivatedMessage(&payloadP);
+        payloadMsgId = MSG_TYPE_ACTIVATED;
+        msgSchedData.sendActivated = false;
+    } else if (msgSchedData.sendMonthlyCheckIn) {
+        // Retrieve the monthly check-in message payload
+        payloadLength = storageMgr_getMonthlyCheckinMessage(&payloadP);
+        payloadMsgId = MSG_TYPE_CHECKIN;
+        msgSchedData.sendMonthlyCheckIn = false;
+    } else if (msgSchedData.sendGpsLocation) {
+        // Retrieve the monthly GPS message payload
+        payloadLength = gps_getGpsMessage(&payloadP);
+        payloadMsgId = MSG_TYPE_GPS_LOCATION;
+        msgSchedData.sendGpsLocation = false;
+    }
+
+    cmdWriteP->cmd             = OUTPOUR_M_COMMAND_SEND_DATA;
+    cmdWriteP->payloadMsgId    = payloadMsgId;  /* the payload type */
+    cmdWriteP->payloadP        = payloadP;   /* the payload pointer */
+    cmdWriteP->payloadLength   = payloadLength;  /* size of the payload in bytes */
 }
 
 /**
@@ -132,12 +173,12 @@ void msgSched_scheduleMonthlyCheckInMessage(void) {
 }
 
 /**
-* \brief Schedule the GPS message to be sent when the Storage 
-*        clock hour is set to 1:00 AM.
+* \brief Schedule the GPS Location message to be sent when the 
+*        Storage clock hour is set to 1:00 AM.
 */
-void msgSched_scheduleGpsMessage(void) {
+void msgSched_scheduleGpsLocationMessage(void) {
     msgSchedData.msgScheduled = true;
-    msgSchedData.sendGps = true;
+    msgSchedData.sendGpsLocation = true;
 }
 
 /**

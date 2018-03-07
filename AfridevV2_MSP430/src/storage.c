@@ -571,23 +571,38 @@ uint8_t storageMgr_prepareMsgHeader(uint8_t *dataPtr, uint8_t payloadMsgId) {
 }
 
 /**
-* @brief Prepare and initiate sending the the monthly check-in 
-*        message.
+* \brief Build the Monthly Check-In message for transmission. 
+*        The shared buffer is used to hold the message. The
+*        message consists of only the standard msg head.
+* 
+* @param payloadPP Pointer to fill in with the address of the 
+*                  message to send.
+* 
+* @return uint16_t Length of the message in bytes.
 */
-void storageMgr_sendMonthlyCheckin(void) {
+uint16_t storageMgr_getMonthlyCheckinMessage(uint8_t **payloadPP) {
     // Get the shared buffer (we borrow the ota buffer)
     uint8_t *payloadP = modemMgr_getSharedBuffer();
     // Fill in the buffer with the standard message header
     uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_CHECKIN);
-    // Initiate sending the monthly check-in message
-    dataMsgMgr_sendDataMsg(MSG_TYPE_CHECKIN, payloadP, payloadSize);
+    // Assign pointer
+    *payloadPP = payloadP;
+    // return payload size
+    return payloadSize;
 }
 
 /**
-* @brief Prepare and initiate sending the the unit activated 
-*        message.
+* \brief Build the Activated message for transmission. The 
+*        shared buffer is used to hold the message. The standard
+*        msg header is added first followed by the day liter
+*        sum.
+* 
+* @param payloadPP Pointer to fill in with the address of the 
+*                  message to send.
+* 
+* @return uint16_t Length of the message in bytes.
 */
-void storageMgr_sendActivatedMessage(void) {
+uint16_t storageMgr_getActivatedMessage(uint8_t **payloadPP) {
     uint16_t dayLiterSum = stData.dayMilliliterSum / 1000;
     // Get the shared buffer (we borrow the ota buffer)
     uint8_t *payloadP = modemMgr_getSharedBuffer();
@@ -596,8 +611,10 @@ void storageMgr_sendActivatedMessage(void) {
     // Add total liters for the day
     payloadP[payloadSize++] = dayLiterSum >> 8;
     payloadP[payloadSize++] = dayLiterSum & 0xFF;
-    // Initiate sending the activated message
-    dataMsgMgr_sendDataMsg(MSG_TYPE_ACTIVATED, payloadP, payloadSize);
+    // Assign pointer
+    *payloadPP = payloadP;
+    // return payload size
+    return payloadSize;
 }
 
 /*************************
@@ -634,8 +651,7 @@ static void checkAndTransmitDailyLogs(bool overrideTransmissionRate) {
         if (transmissionRateMet || overrideTransmissionRate) {
             // Its time to transmit the accumulated daily logs
             stData.totalDailyLogsTransmitted = 0;
-            // Schedule sending the daily logs.
-            // This will send the oldest daily log that is ready.
+            // Schedule transmitting all the daily water logs that are ready.
             msgSched_scheduleDailyWaterLogMessage();
         }
     }
@@ -650,7 +666,7 @@ static void checkAndTransmitDailyLogs(bool overrideTransmissionRate) {
 static void checkAndTransmitMonthlyCheckin(void) {
     if ((stData.storageTime_week % 4) == 0) {
         if (!stData.daysActivated || !stData.haveSentDailyLogs) {
-            // Schedule the monthly check-in message
+            // Schedule the monthly check-in message for transmission
             msgSched_scheduleMonthlyCheckInMessage();
         }
         // Reset flag.  We want to identify whether at least one
@@ -762,8 +778,12 @@ static void recordLastDay(void) {
     // If the number of measured daily liters exceeds the threshold, then consider
     // the unit activated.  Unit is considered not-activated if daysActivated is 0.
     if (!stData.daysActivated && (stData.dayMilliliterSum > DAILY_MILLILITERS_ACTIVATION_THRESHOLD)) {
-        // Schedule the activated status message
+        // Schedule the activated message for transmission
         msgSched_scheduleActivatedMessage();
+        // As part of becoming activated, perform a GPS measurement and send
+        // a GPS Location message at the same time the Activated message is sent
+        msgSched_scheduleGpsMeasurement();
+        msgSched_scheduleGpsLocationMessage();
         // unit is now activated
         stData.daysActivated++;
     }

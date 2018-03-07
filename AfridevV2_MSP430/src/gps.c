@@ -266,3 +266,33 @@ void gps_sendGpsMessage(void) {
     dataMsgMgr_sendDataMsg(MSG_TYPE_GPS_LOCATION, payloadP, payloadSize);
 }
 
+/**
+* \brief Build the GPS Location message for transmission. The 
+*        shared buffer is used to hold the message. The standard
+*        msg header is added first followed by the GPS data.
+* 
+* @param payloadPP Pointer to fill in with the address of the 
+*                  message to send.
+* 
+* @return uint16_t Length of the message in bytes.
+*/
+uint16_t gps_getGpsMessage(uint8_t **payloadPP) {
+    uint8_t *ptr = NULL;
+    // Get the shared buffer (we borrow the ota buffer)
+    uint8_t *payloadP = modemMgr_getSharedBuffer();
+    // Fill in the buffer with the standard message header
+    uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_GPS_LOCATION);
+    // Add the GPS data if available
+    ptr = &payloadP[payloadSize];
+    if (gpsMsg_gotRmcMessage()) {
+        payloadSize += gpsMsg_getRmcMessage(ptr);
+    } else {
+        // If a RMC string is not available, put the default no-data string.
+        strcpy((char *)ptr, no_gps_data_string);
+        payloadSize += sizeof(no_gps_data_string);
+    }
+    // Assign pointer
+    *payloadPP = payloadP;
+    // return payload size
+    return payloadSize;
+}

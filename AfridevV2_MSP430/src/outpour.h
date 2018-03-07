@@ -479,7 +479,7 @@ void dataMsgMgr_exec(void);
 void dataMsgMgr_init(void);
 bool dataMsgMgr_isSendMsgActive(void);
 bool dataMsgMgr_sendDataMsg(MessageType_t msgId, uint8_t *dataP, uint16_t lengthInBytes);
-bool dataMsgMgr_sendDailyLogs(void);
+bool dataMsgMgr_startSendingScheduled(void);
 
 /*******************************************************************************
 * msgOta.c
@@ -586,8 +586,8 @@ void storageMgr_sendDebugDataToUart(void);
 uint8_t storageMgr_getStorageClockInfo(uint8_t *bufP);
 uint8_t storageMgr_getStorageClockHour(void);
 uint8_t storageMgr_prepareMsgHeader(uint8_t *dataPtr, uint8_t payloadMsgId);
-void storageMgr_sendMonthlyCheckin(void);
-void storageMgr_sendActivatedMessage(void);
+uint16_t storageMgr_getMonthlyCheckinMessage(uint8_t **payloadPP);
+uint16_t storageMgr_getActivatedMessage(uint8_t **payloadPP); 
 
 /*******************************************************************************
 * waterSense.c
@@ -661,8 +661,9 @@ void msgSched_exec(void);
 void msgSched_scheduleDailyWaterLogMessage(void);
 void msgSched_scheduleActivatedMessage(void);
 void msgSched_scheduleMonthlyCheckInMessage(void);
-void msgSched_scheduleGpsMessage(void);
+void msgSched_scheduleGpsLocationMessage(void);
 void msgSched_scheduleGpsMeasurement(void);
+void msgSched_getNextMessageToTransmit(modemCmdWriteData_t *cmdWriteP); 
 
 /*******************************************************************************
 * gps.c 
@@ -673,6 +674,7 @@ void gps_start (void);
 void gps_stop (void);
 bool gps_isActive(void);
 void gps_sendGpsMessage(void);
+uint16_t gps_getGpsMessage(uint8_t **payloadP);
 
 /*******************************************************************************
 * gpsPower.c 
