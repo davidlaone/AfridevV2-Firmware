@@ -17,30 +17,10 @@
  **************************/
 
 /**
- * \def TRANSMISSION_RATE_IN_DAYS
- * Specify how often to transmit data 
- */
-#define TRANSMISSION_RATE_IN_DAYS 7
-
-/**
  * \def TOTAL_WEEKLY_LOGS
  * \brief Specify the number of weekly logs in flash.
  */
-#define TOTAL_WEEKLY_LOGS 1
-
-/**
- * \def CURRENT_WEEKLY_LOG_NUM
- * Always 0. Other products support multiple weeks of data 
- * storage.  But Afridev1 does not. 
- */
-#define CURRENT_TX_WEEK 0
-
-/**
- * \def CURRENT_WEEKLY_LOG_NUM
- * Always 0. Other products support multiple weeks of data 
- * storage.  But Afridev1 does not. 
- */
-#define CURRENT_WEEKLY_LOG_NUM 0
+#define TOTAL_WEEKLY_LOGS ((uint8_t)7)
 
 /**
  * \def WEEKLY_LOG_SIZE
@@ -87,11 +67,32 @@
 #define DAILY_MILLILITERS_ACTIVATION_THRESHOLD ((uint16_t)50*1000)
 
 /**
+ * \def MIN_DAILY_LITERS_TO_SET_REDFLAG_CONDITION
+ * \brief The daily liters must meet this threshold before a red
+ *        flag condition can be set.
+ */
+#define MIN_DAILY_LITERS_TO_SET_REDFLAG_CONDITION ((uint16_t)10)
+
+/**
  * \def FLASH_BLOCK_SIZE
  * \brief Define how big a flash block is.  Represents the 
  *        minimum size that can be erased.
  */
 #define FLASH_BLOCK_SIZE ((uint16_t)512)
+
+/**
+ * \def DO_RED_FLAG_PROCESSSING
+ * \brief If set to non-zero value, then the red flag processing 
+ *        function will be called.
+ */
+#define DO_RED_FLAG_PROCESSING 1
+
+/**
+ * \def DO_RED_FLAG_TRANSMISSION
+ * \brief If set to non-zero value, then a new red flag 
+ *        condition will initiate daily log transmission.
+ */
+#define DO_RED_FLAG_TRANSMISSION 0
 
 /**
  * \typedef dailyLog_t
@@ -103,7 +104,7 @@ typedef struct __attribute__((__packed__))dailyLog_s {
     uint16_t padTargetAir[6];        /**< 12, 48-59 */
     uint16_t padTargetWater[6];      /**< 12, 60-71 */
     uint16_t padSubmergedCount[6];   /**< 12, 72-83 */
-    uint16_t dailyLiters;            /**< 02, 84-85 */
+    uint16_t comparedAverage;        /**< 02, 84-85 */
     uint16_t unknowns;               /**< 02, 86-87 */
     uint8_t  redFlag;                /**< 01, 88 */
 } dailyLog_t;
@@ -153,12 +154,14 @@ typedef struct storageData_s {
     uint16_t minuteMilliliterSum;      /**< Running milliliter sum for current minute */
     uint32_t hourMilliliterSum;        /**< Running milliliter sum for current hour */
     uint32_t dayMilliliterSum;         /**< Running milliliter sum for current day */
+    uint16_t activatedLiterSum;        /**< Save the liter sum when activated */
 
     uint8_t storageTime_seconds;       /**< Current storage time - sec  */
     uint8_t storageTime_minutes;       /**< Current storage time - min */
     uint8_t storageTime_hours;         /**< Current storage time - hour */
     uint8_t storageTime_dayOfWeek;     /**< Current storage time - day */
     uint8_t storageTime_week;          /**< Current storage time - week */
+    uint8_t curWeeklyLogNum;           /**< Current weekly flash log number we are storing to */
 
     bool alignStorageFlag;             /**< True if time to align storage time */
     uint8_t alignSecond;               /**< Time to align at - sec */
@@ -166,7 +169,17 @@ typedef struct storageData_s {
     uint8_t alignHour24;               /**< Time to align at - hour */
     int32_t alignSafetyCheckInSec;     /**< Max time to wait for an align event */
 
+    bool redFlagCondition;             /**< flag for red flag condition */
+    uint8_t redFlagDayCount;           /**< running count of red flag days */
+    uint8_t redFlagMapDay;             /**< used as index for red flag init mapping */
+    bool redFlagDataFullyPopulated;    /**< true if redflag init mapping is completed */
+    uint16_t redFlagThreshTable[7];    /**< store redFlag compare thresholds */
+
     uint8_t transmissionRateInDays;    /**< Specify how often to transmit data */
+    int8_t daysSinceLastTransmission;  /**< Track number of days since last transmission */
+    bool sendData;                     /**< True if ready to send water log data */
+    uint8_t startTxWeek;               /**< What week's log to start transmitting from */
+    uint8_t curTxWeek;                 /**< What week's log we are currently transmitting */
     uint8_t totalDailyLogsTransmitted; /**< Counter of total daily logs transmitted in current tx session */
     bool haveSentDailyLogs;            /**< Flag to indicate we have transmitted a daily log */
 
@@ -184,9 +197,31 @@ typedef struct storageData_s {
  *  day (midnight of the following day).
  */
 #pragma DATA_SECTION(week1Log, ".week1Data")
-static const weeklyLog_t week1Log;
+const weeklyLog_t week1Log;
+#pragma DATA_SECTION(week2Log, ".week2Data")
+const weeklyLog_t week2Log;
+#pragma DATA_SECTION(week3Log, ".week3Data")
+const weeklyLog_t week3Log;
+#pragma DATA_SECTION(week4Log, ".week4Data")
+const weeklyLog_t week4Log;
+#pragma DATA_SECTION(week5Log, ".week5Data")
+const weeklyLog_t week5Log;
+#pragma DATA_SECTION(week6Log, ".week6Data")
+const weeklyLog_t week6Log;
+#pragma DATA_SECTION(week7Log, ".week7Data")
+const weeklyLog_t week7Log;
 
-#define WEEKLY_LOG_ADDRESS_IN_FLASH ((weeklyLog_t *)&week1Log)
+// Force this table to be located in the .text area
+#pragma DATA_SECTION(weeklyLogAddrTable, ".text")
+static const weeklyLog_t *weeklyLogAddrTable[] = {
+    &week1Log,
+    &week2Log,
+    &week3Log,
+    &week4Log,
+    &week5Log,
+    &week6Log,
+    &week7Log,
+};
 
 /**
  * \var stData 
@@ -204,19 +239,25 @@ static void recordLastMinute(void);
 static void recordLastHour(void);
 static void recordLastDay(void);
 static void writeStatsToDailyLog(void);
-static dailyLog_t* getDailyLogAddr(uint8_t dayOfTheWeek);
-static msgHeader_t* getDailyHeaderAddr(uint8_t dayOfTheWeek);
-static dailyPacket_t* getDailyPacketAddr(uint8_t dayOfTheWeek);
-static void eraseWeeklyLog(void);
+static weeklyLog_t* getWeeklyLogAddr(uint8_t weeklyLogNum);
+static dailyLog_t* getDailyLogAddr(uint8_t weeklyLogNum, uint8_t dayOfTheWeek);
+static msgHeader_t* getDailyHeaderAddr(uint8_t weeklyLogNum, uint8_t dayOfTheWeek);
+static dailyPacket_t* getDailyPacketAddr(uint8_t weeklyLogNum, uint8_t dayOfTheWeek);
+static uint8_t getNextWeeklyLogNum(uint8_t weeklyLogNum);
+static void eraseWeeklyLog(uint8_t weeklyLogNum);
 static void prepareNextWeeklyLog(void);
 static void prepareDailyLog(void);
-static void markDailyLogAsReady(uint8_t dayOfTheWeek);
-static bool isDailyLogReady(uint8_t dayOfTheWeek);
-static void markDailyLogAsTransmitted(uint8_t dayOfTheWeek);
-static bool wasDailyLogTransmitted(uint8_t dayOfTheWeek);
+static void markDailyLogAsReady(uint8_t dayOfTheWeek, uint8_t weeklyLogNum);
+static bool isDailyLogReady(uint8_t dayOfTheWeek, uint8_t weeklyLogNum);
+static void markDailyLogAsTransmitted(uint8_t dayOfTheWeek, uint8_t weeklyLogNum);
+static bool wasDailyLogTransmitted(uint8_t dayOfTheWeek, uint8_t weeklyLogNum);
 static void checkAndTransmitMonthlyCheckin(void);
 static void checkAndTransmitDailyLogs(bool overrideTransmissionRate);
 static void clearAlignStats(void);
+
+#if (DO_RED_FLAG_PROCESSING != 0)
+static bool redFlagProcessing(void);
+#endif
 
 /***************************
  * Module Public Functions
@@ -230,11 +271,11 @@ static void clearAlignStats(void);
 void storageMgr_init(void) {
     memset(&stData, 0, sizeof(storageData_t));
 
-    // Set the default value for transmission rate
-    stData.transmissionRateInDays = TRANSMISSION_RATE_IN_DAYS;
-
-    // Reset the weekly log number
+    // Erase flash for all the weekly data logs
     storageMgr_resetWeeklyLogs();
+
+    // Set default transmission rate
+    stData.transmissionRateInDays = 1;
 }
 
 /**
@@ -253,10 +294,14 @@ void storageMgr_exec(uint16_t currentFlowRateInMLPerSec) {
         stData.alignSafetyCheckInSec -= SECONDS_PER_TREND;
         if (doesAlignTimeMatch() || (stData.alignSafetyCheckInSec < 0)) {
             // If the current time is equal to the storage offset,
-            // then zero storage time and reset the weekly log number
+            // then zero storage time and clear storage memory
             stData.alignStorageFlag = false;
             clearAlignStats();
             storageMgr_resetWeeklyLogs();
+            // Write daily log header for today if activated
+            if (stData.daysActivated) {
+                prepareDailyLog();
+            }
         }
         // Don't start storing any data until we are officially aligned.
         return;
@@ -297,11 +342,25 @@ void storageMgr_exec(uint16_t currentFlowRateInMLPerSec) {
         // Update Time
         stData.storageTime_dayOfWeek++;
         stData.storageTime_hours = 0;
+
+        // Prepare data storage for next day
+        if (stData.storageTime_dayOfWeek < TOTAL_DAYS_IN_A_WEEK) {
+            // Write daily log header for day if activated
+            if (stData.daysActivated) {
+                prepareDailyLog();
+            }
+        }
     }
     if (stData.storageTime_dayOfWeek == TOTAL_DAYS_IN_A_WEEK) {
         // Update Time
         stData.storageTime_dayOfWeek = 0;
         stData.storageTime_week++;
+        // Prepare data storage for next week and day
+        prepareNextWeeklyLog();
+        // Write daily log header for day if activated
+        if (stData.daysActivated) {
+            prepareDailyLog();
+        }
         // Check if its time to send a monthly checkin message.
         // We only send the message if we are not activated and four
         // weeks have passed.
@@ -380,11 +439,47 @@ uint16_t storageMgr_getDaysActivated(void) {
 }
 
 /**
-* \brief Resets the current weekly log number.
+* \brief Clear the redFlag in the records
+* \ingroup PUBLIC_API
+*/
+void storageMgr_resetRedFlag(void) {
+    stData.redFlagCondition = false;
+}
+
+/**
+* \brief Return the redFlag condition
+* 
+* @return bool True if red flag condition is set. 
+*/
+bool storageMgr_getRedFlagConditionStatus(void) {
+    return stData.redFlagCondition;
+}
+
+/**
+* \brief Clear the redFlag and redFlag map in the records
+* \ingroup PUBLIC_API
+*/
+void storageMgr_resetRedFlagAndMap(void) {
+    stData.redFlagCondition = false;
+    stData.redFlagDataFullyPopulated = false;
+    stData.redFlagMapDay = 0;
+    stData.redFlagDayCount = 0;
+    // Clear the thresh table containing the daily thresh
+    memset(stData.redFlagThreshTable, 0, sizeof(stData.redFlagThreshTable));
+}
+
+/**
+* \brief Resets flash for all weekly logs.  This erases all 
+*        weekly log containers and resets the current weekly log
+*        number.
 * \ingroup PUBLIC_API
 */
 void storageMgr_resetWeeklyLogs(void) {
-    // Does nothing for Afridev1 because there is only one weekly log.
+    int i;
+    stData.curWeeklyLogNum = 0;
+    for (i = 0; i < TOTAL_WEEKLY_LOGS; i++) {
+        eraseWeeklyLog(i);
+    }
     return;
 }
 
@@ -426,15 +521,15 @@ uint16_t storageMgr_getNextDailyLogToTransmit(uint8_t **dataPP) {
         for (i = 0; i < TOTAL_DAYS_IN_A_WEEK; i++) {
             // Get the flags to check if daily log is ready
             // and has not yet been transmitted.
-            bool logReady = isDailyLogReady(i);
-            bool wasTransmitted = wasDailyLogTransmitted(i);
+            bool logReady = isDailyLogReady(i, stData.curTxWeek);
+            bool wasTransmitted = wasDailyLogTransmitted(i, stData.curTxWeek);
             if (logReady && !wasTransmitted) {
                 // Get the address of the daily log
-                dailyPacket_t *dpP = getDailyPacketAddr(i);
+                dailyPacket_t *dpP = getDailyPacketAddr(stData.curTxWeek, i);
                 *dataPP = (uint8_t *)dpP;
                 length = sizeof(dailyPacket_t);
                 // Mark this daily log as being transmitted
-                markDailyLogAsTransmitted(i);
+                markDailyLogAsTransmitted(i, stData.curTxWeek);
                 break;
             }
         }
@@ -442,8 +537,14 @@ uint16_t storageMgr_getNextDailyLogToTransmit(uint8_t **dataPP) {
         // Check if we transmitted all days of current transmit week.
         // If so, move to following week.
         if (i == TOTAL_DAYS_IN_A_WEEK) {
-            length = 0;
-            allDailyLogsTransmitted = true;
+            stData.curTxWeek = getNextWeeklyLogNum(stData.curTxWeek);
+            // If we have wrapped around all weekly logs, then halt transmitting.
+            // We assume all daily logs that were marked as ready have been
+            // transmitted.
+            if (stData.curTxWeek == stData.startTxWeek) {
+                length = 0;
+                allDailyLogsTransmitted = true;
+            }
         }
     } while ((length == 0) && !allDailyLogsTransmitted);
 
@@ -484,13 +585,24 @@ void storageMgr_sendDebugDataToUart(void) {
 
 /**
  *  \brief Set how often to transmit the daily logs (in days).
- *         The legal values are 1 and 7.
+ *         We currently limit the max rate to 6 weeks worth of
+ *         data even though there is storage allocated for 7
+ *         weeks of daily logs. That way when the transmission
+ *         rate is set to max(6 weeks x 7 days = 42 days) the
+ *         current week that is collecting data is not one of
+ *         the weekly logs that has to be transmitted. It makes
+ *         things simpler by not having to worry about the logic
+ *         for erasing and preparing the current weekly log
+ *         which would contain daily logs that need to be
+ *         transmitted first if there were a max of 6 weeks of
+ *         storage available.
  */
 void storageMgr_setTransmissionRate(uint8_t transmissionRateInDays) {
-    if ((transmissionRateInDays != 1) && (transmissionRateInDays != 7)) {
-        transmissionRateInDays = 1;
-    }
+    uint8_t maxAllowedDays = (TOTAL_DAYS_IN_A_WEEK * (TOTAL_WEEKLY_LOGS - 1));
     stData.transmissionRateInDays = transmissionRateInDays;
+    if ((stData.transmissionRateInDays < 1) || (stData.transmissionRateInDays > maxAllowedDays)) {
+        stData.transmissionRateInDays = 1;
+    }
 }
 
 /**
@@ -603,7 +715,7 @@ uint16_t storageMgr_getMonthlyCheckinMessage(uint8_t **payloadPP) {
 * @return uint16_t Length of the message in bytes.
 */
 uint16_t storageMgr_getActivatedMessage(uint8_t **payloadPP) {
-    uint16_t dayLiterSum = stData.dayMilliliterSum / 1000;
+    uint16_t dayLiterSum = stData.activatedLiterSum;
     // Get the shared buffer (we borrow the ota buffer)
     uint8_t *payloadP = modemMgr_getSharedBuffer();
     // Fill in the buffer with the standard message header
@@ -636,20 +748,25 @@ static void checkAndTransmitDailyLogs(bool overrideTransmissionRate) {
     if (stData.daysActivated) {
         bool transmissionRateMet = false;
 
-        if (stData.transmissionRateInDays == 7) {
-            // Check if have reached the day to transmit the daily logs.
-            // Currently, we transmit once a week, always at the end of the week.
-            if (stData.storageTime_dayOfWeek == (TOTAL_DAYS_IN_A_WEEK - 1)) {
-                // Set flag
-                transmissionRateMet = true;
-            }
-        } else {
-            // Daily transmit
+        // Increment days since last transmit
+        stData.daysSinceLastTransmission++;
+
+        // Check if we reached transmit rate in days
+        if (stData.daysSinceLastTransmission >= stData.transmissionRateInDays) {
+            // Reset counter
+            stData.daysSinceLastTransmission = 0;
+            // Set flag
             transmissionRateMet = true;
         }
 
         if (transmissionRateMet || overrideTransmissionRate) {
             // Its time to transmit the accumulated daily logs
+            // Start with the oldest week, which is the next weekly log from
+            // the current week.  We will march through all the weekly logs
+            // looking for any daily logs that are marked as ready but have
+            // not been transmitted.
+            stData.startTxWeek = getNextWeeklyLogNum(stData.curWeeklyLogNum);
+            stData.curTxWeek = stData.startTxWeek;
             stData.totalDailyLogsTransmitted = 0;
             // Schedule transmitting all the daily water logs that are ready.
             msgSched_scheduleDailyWaterLogMessage();
@@ -701,27 +818,17 @@ static void recordLastMinute(void) {
  */
 static void recordLastHour(void) {
     // Get pointer to today's dailyLog in flash.
-    dailyLog_t *dailyLogsP = getDailyLogAddr(stData.storageTime_dayOfWeek);
+    dailyLog_t *dailyLogsP = getDailyLogAddr(stData.curWeeklyLogNum, stData.storageTime_dayOfWeek);
     // Get address to liters parameter in the dailyLog
-    uint8_t *hourlyLitersAddrP = (uint8_t *)&(dailyLogsP->litersPerHour[stData.storageTime_hours]);
+    uint8_t *addr = (uint8_t *)&(dailyLogsP->litersPerHour[stData.storageTime_hours]);
     uint16_t litersForThisHour = 0;
 
     // The hourly water volume is stored in the log as Total Milliliters/32
     litersForThisHour = (stData.hourMilliliterSum >> 5) & 0xffff;
 
     if (stData.daysActivated) {
-        // If this is the completion of the first hour of the day, then prepare
-        // the daily log area in flash.
-        if (stData.storageTime_hours == 0) {
-            // If this is the first day of the week, then prepare the
-            // weekly log area in flash.
-            if (stData.storageTime_dayOfWeek == 0) {
-                prepareNextWeeklyLog();
-            }
-            prepareDailyLog();
-        }
         // Store the hourly milliliter value to the flash log
-        msp430Flash_write_int16(hourlyLitersAddrP, litersForThisHour);
+        msp430Flash_write_int16(addr, litersForThisHour);
     }
 
     // Track the total daily milliliters
@@ -748,19 +855,38 @@ static void recordLastDay(void) {
     // Only write to daily log in flash if unit is activated
     if (stData.daysActivated) {
 
+        bool newRedFlagCondition = false;
+
         // Get pointer to today's dailyLog in flash.
-        dailyLog_t *dailyLogsP = getDailyLogAddr(stData.storageTime_dayOfWeek);
+        dailyLog_t *dailyLogsP = getDailyLogAddr(stData.curWeeklyLogNum, stData.storageTime_dayOfWeek);
 
         // Write data stats to dailyLog
         writeStatsToDailyLog();
 
         // Mark the current daily log as ready in the weekly log meta data.
-        markDailyLogAsReady(stData.storageTime_dayOfWeek);
+        markDailyLogAsReady(stData.storageTime_dayOfWeek, stData.curWeeklyLogNum);
+
+#if (DO_RED_FLAG_PROCESSING != 0)
+    #if (DO_RED_FLAG_TRANSMISSION != 0)
+        // A red flag condition can initiate daily log transmission.
+        newRedFlagCondition = redFlagProcessing();
+    #else
+        // A red flag condition will not initiate daily log transmission.
+        redFlagProcessing();
+    #endif
+#endif
+
+        // Write the redFlag condition to the daily log
+        msp430Flash_write_bytes((uint8_t *)&(dailyLogsP->redFlag), (uint8_t *)&stData.redFlagCondition, FLASH_WRITE_ONE_BYTE);
+
+        // Write the red flag threshold value for today to the daily log
+        msp430Flash_write_int16((uint8_t *)&(dailyLogsP->comparedAverage), stData.redFlagThreshTable[stData.storageTime_dayOfWeek]);
 
         // Check if its time to transmit data
         // Data is only sent if we are activated and we have reached
-        // the end of the week.
-        checkAndTransmitDailyLogs(false);
+        // the transmissionRateInDays since the last transmission.
+        // A new red flag condition overrides the transmission rate setting.
+        checkAndTransmitDailyLogs(newRedFlagCondition);
 
         // Increment total days activated
         stData.daysActivated++;
@@ -786,6 +912,8 @@ static void recordLastDay(void) {
         msgSched_scheduleGpsLocationMessage();
         // unit is now activated
         stData.daysActivated++;
+        // Save activated liter sum
+        stData.activatedLiterSum = stData.dayMilliliterSum / 1000;
     }
 
     // Reset the daily based statistics
@@ -799,11 +927,9 @@ static void writeStatsToDailyLog(void) {
     uint8_t *addr;
     uint16_t i = 0;
     uint16_t u16Val;
-    uint8_t u8Val;
-
 
     // Get pointer to today's dailyLog in flash.
-    dailyLog_t *dailyLogsP = getDailyLogAddr(stData.storageTime_dayOfWeek);
+    dailyLog_t *dailyLogsP = getDailyLogAddr(stData.curWeeklyLogNum, stData.storageTime_dayOfWeek);
 
 #if 0
     // daily log layout for reference (see daily log structure)
@@ -811,17 +937,10 @@ static void writeStatsToDailyLog(void) {
     uint16_t padMax[6];              /**< 12, 48-59 */
     uint16_t padMin[6];              /**< 12, 60-71 */
     uint16_t padSubmerged[6];        /**< 12, 72-83 */
-    uint16_t dailyLiters;            /**< 02, 84-85 */
+    uint16_t comparedAverage;        /**< 02, 84-85 */
     uint16_t unknowns;               /**< 02, 86-87 */
     uint8_t  redFlag;                /**< 01, 88 */
 #endif
-
-    // Write the redFlag condition to the daily log - NO LONGER USED
-    u8Val = 0;
-    msp430Flash_write_bytes((uint8_t *)&(dailyLogsP->redFlag), (uint8_t *)&u8Val, FLASH_WRITE_ONE_BYTE);
-
-    // Write the total daily liters value for the dailyLiters field
-    msp430Flash_write_int16((uint8_t *)&(dailyLogsP->dailyLiters), (stData.dayMilliliterSum / 1000));
 
     // NOTE - consider removing pad stats for Afridev1
 
@@ -849,6 +968,82 @@ static void writeStatsToDailyLog(void) {
     waterSense_clearStats();
 }
 
+#if (DO_RED_FLAG_PROCESSING != 0)
+/**
+* @brief Monitor for a redFlag condition.
+* 
+* @return bool Returns true if a new red flag condition is 
+*         detected.
+*/
+static bool redFlagProcessing(void) {
+
+    bool newRedFlagCondition = false;
+    int16_t dayLiterSum = stData.dayMilliliterSum / 1000;
+
+    // check if the Red Flag mapping table is fully populated
+    if (stData.redFlagDataFullyPopulated) {
+
+        uint8_t dayOfTheWeek = stData.storageTime_dayOfWeek;
+        uint16_t redFlagDayThreshValue = stData.redFlagThreshTable[dayOfTheWeek];
+
+        if (stData.redFlagCondition) {
+            // see if existing redFlag condition needs to be cleared
+            uint32_t temp;
+            temp = redFlagDayThreshValue + redFlagDayThreshValue + redFlagDayThreshValue;
+            uint16_t threeFourths = (temp >> 2) & 0xffff;
+
+            // If we are less than 91 days of red flag condition, increment red flag.
+            // Once we hit 91, we don't need to increment anymore because all want
+            // to know is that we are past 90 days.
+            if (stData.redFlagDayCount < 91) {
+                stData.redFlagDayCount += 1;
+            }
+
+            // If today's dailyLiters value is greater than 3/4 of the threshold value,
+            // then clear the redFlag condition.
+            if (dayLiterSum > threeFourths) {
+                // Reset red flag
+                storageMgr_resetRedFlag();
+            }
+            // If today's dailyLiters value is greater than 1/8 of the threshold value,
+            // and we are beyond 90 days, then clear the redFlag condition and restart the redFlag mapping.
+            else if ((dayLiterSum > (redFlagDayThreshValue >> 3)) && (stData.redFlagDayCount > 90)) {
+                // Restart red flag mapping
+                storageMgr_resetRedFlagAndMap();
+            }
+
+        } else {
+            // Check that today's daily liters were at least 50% of threshold
+            uint16_t halfExpected = redFlagDayThreshValue >> 1;
+            if ((dayLiterSum < halfExpected) && (redFlagDayThreshValue > MIN_DAILY_LITERS_TO_SET_REDFLAG_CONDITION)) {
+                // Red flag condition is met
+                stData.redFlagCondition = true;
+                stData.redFlagDayCount = 1;
+                newRedFlagCondition = true;
+            } else {
+                // Update the threshold table with a new value based on 75% threshold and 25% today's dailyLiters
+                uint32_t temp;
+                temp = redFlagDayThreshValue + redFlagDayThreshValue + redFlagDayThreshValue + dayLiterSum;
+                uint16_t newAverage = 0;
+                newAverage = (temp >> 2) & 0xffff;
+                stData.redFlagThreshTable[dayOfTheWeek] = newAverage;
+            }
+        }
+    } else {
+        // Put today's daily liters into todays threshold table entry - no averaging
+        // We are trying to get a baseline of each days water usage for the first week.
+        stData.redFlagThreshTable[stData.storageTime_dayOfWeek] = dayLiterSum;
+        stData.redFlagMapDay++;
+        if (stData.redFlagMapDay >= TOTAL_DAYS_IN_A_WEEK) {
+            // Fully populated after one week.
+            stData.redFlagDataFullyPopulated = true;
+        }
+    }
+
+    return newRedFlagCondition;
+}
+#endif
+
 /**
 * \brief Utility routine to check if the alignment time matches 
 *        the current GMT time for seconds, minutes and hours.
@@ -868,15 +1063,35 @@ static bool doesAlignTimeMatch(void) {
 }
 
 /**
+*  \brief Utility function to get the address from the weekly
+*         log number.
+* 
+* @param weeklyLogNum Weekly log number
+* 
+* @return weeklyLog_t*  Returns a pointer to the weekly log 
+*         section.
+*/
+static weeklyLog_t* getWeeklyLogAddr(uint8_t weeklyLogNum) {
+    const weeklyLog_t *wlP;
+    if (weeklyLogNum < TOTAL_WEEKLY_LOGS) {
+        wlP = weeklyLogAddrTable[weeklyLogNum];
+    } else {
+        sysError();
+    }
+    return (weeklyLog_t *)wlP;
+}
+
+/**
 * \brief Utility function to get the daily log address contained
 *        in the weekly log.
 * 
+* @param weeklyLogNum  Which weekly log container
 * @param dayOfTheWeek  Which day of the week.
 * 
 * @return dailyLog_t* Returns a pointer to the daily log
 */
-static dailyLog_t* getDailyLogAddr(uint8_t dayOfTheWeek) {
-    weeklyLog_t *wlP = WEEKLY_LOG_ADDRESS_IN_FLASH;
+static dailyLog_t* getDailyLogAddr(uint8_t weeklyLogNum, uint8_t dayOfTheWeek) {
+    weeklyLog_t *wlP = getWeeklyLogAddr(weeklyLogNum);
     dailyLog_t *dailyLogP = &wlP->dailyPackets[dayOfTheWeek].packetData.dailyLog;
     return dailyLogP;
 }
@@ -885,12 +1100,13 @@ static dailyLog_t* getDailyLogAddr(uint8_t dayOfTheWeek) {
 * \brief   Utility function to get the address to the header 
 *          portion of a daily packet.
 * 
+* @param weeklyLogNum Which weekly log container to access
 * @param dayOfTheWeek Which day of the week
 * 
 * @return msgHeader_t*  Pointer to the packet header.
 */
-static msgHeader_t* getDailyHeaderAddr(uint8_t dayOfTheWeek) {
-    weeklyLog_t *wlP = WEEKLY_LOG_ADDRESS_IN_FLASH;
+static msgHeader_t* getDailyHeaderAddr(uint8_t weeklyLogNum, uint8_t dayOfTheWeek) {
+    weeklyLog_t *wlP = getWeeklyLogAddr(weeklyLogNum);
     msgHeader_t *msgHeaderP = &wlP->dailyPackets[dayOfTheWeek].packetHeader.msgHeader;
     return msgHeaderP;
 }
@@ -898,21 +1114,40 @@ static msgHeader_t* getDailyHeaderAddr(uint8_t dayOfTheWeek) {
 /**
 * \brief Utility function to get the address to a daily packet.
 * 
+* @param weeklyLogNum Which weekly log container to access
 * @param dayOfTheWeek Which day of the week
 * 
 * @return msgHeader_t*  Pointer to the packet.
 */
-static dailyPacket_t* getDailyPacketAddr(uint8_t dayOfTheWeek) {
-    weeklyLog_t *wlP = WEEKLY_LOG_ADDRESS_IN_FLASH;
+static dailyPacket_t* getDailyPacketAddr(uint8_t weeklyLogNum, uint8_t dayOfTheWeek) {
+    weeklyLog_t *wlP = getWeeklyLogAddr(weeklyLogNum);
     dailyPacket_t *dailyPacketP = &wlP->dailyPackets[dayOfTheWeek];
     return dailyPacketP;
 }
 
 /**
-* \brief Erase the weekly log container (in flash).
+* \brief   Utility function to increment to the next weekly log.
+*          Handles rollover condition.
+* 
+* @param weeklyLogNum Current weekly log number
+* 
+* @return uint8_t Next sequential weekly log number
 */
-static void eraseWeeklyLog(void) {
-    uint8_t *addr = (uint8_t *)WEEKLY_LOG_ADDRESS_IN_FLASH;
+static uint8_t getNextWeeklyLogNum(uint8_t weeklyLogNum) {
+    uint8_t nextWeeklyLogNum = weeklyLogNum + 1;
+    if (nextWeeklyLogNum >= TOTAL_WEEKLY_LOGS) {
+        nextWeeklyLogNum = 0;
+    }
+    return nextWeeklyLogNum;
+}
+
+/**
+* \brief Erase the weekly log container (in flash).
+* 
+* @param weeklyLogNum  The weekly log number.
+*/
+static void eraseWeeklyLog(uint8_t weeklyLogNum) {
+    uint8_t *addr = (uint8_t *)getWeeklyLogAddr(weeklyLogNum);
     msp430Flash_erase_segment(addr);
     msp430Flash_erase_segment(addr + FLASH_BLOCK_SIZE);
 }
@@ -922,7 +1157,10 @@ static void eraseWeeklyLog(void) {
 *        required).  Erase the identified weekly log container.
 */
 static void prepareNextWeeklyLog(void) {
-    eraseWeeklyLog();
+    volatile uint8_t curWeeklyLogNum = stData.curWeeklyLogNum;
+    volatile uint8_t nextWeeklyLogNum = getNextWeeklyLogNum(curWeeklyLogNum);
+    stData.curWeeklyLogNum = nextWeeklyLogNum;
+    eraseWeeklyLog(nextWeeklyLogNum);
 }
 
 /**
@@ -930,7 +1168,7 @@ static void prepareNextWeeklyLog(void) {
 *        on beginning-of-day info.
 */
 static void prepareDailyLog(void) {
-    msgHeader_t *msgHeaderP = getDailyHeaderAddr(stData.storageTime_dayOfWeek);
+    msgHeader_t *msgHeaderP = getDailyHeaderAddr(stData.curWeeklyLogNum, stData.storageTime_dayOfWeek);
     timePacket_t tp;
     uint8_t temp8;
 
@@ -985,10 +1223,11 @@ static void prepareDailyLog(void) {
 *        ready for transmit.
 * 
 * @param dayOfTheWeek The day of the week to record
+* @param weeklyLogNum The weekly log container to use
 */
-static void markDailyLogAsReady(uint8_t dayOfTheWeek) {
+static void markDailyLogAsReady(uint8_t dayOfTheWeek, uint8_t weeklyLogNum) {
     uint8_t zeroVal = 0;
-    weeklyLog_t *wlP = WEEKLY_LOG_ADDRESS_IN_FLASH;
+    weeklyLog_t *wlP = getWeeklyLogAddr(weeklyLogNum);
     if (dayOfTheWeek >= TOTAL_DAYS_IN_A_WEEK) {
         return;
     }
@@ -1001,9 +1240,10 @@ static void markDailyLogAsReady(uint8_t dayOfTheWeek) {
 *        transmit.
 * 
 * @param dayOfTheWeek The day of the week to record
+* @param weeklyLogNum The weekly log container to use
 */
-static bool isDailyLogReady(uint8_t dayOfTheWeek) {
-    weeklyLog_t *wlP = WEEKLY_LOG_ADDRESS_IN_FLASH;
+static bool isDailyLogReady(uint8_t dayOfTheWeek, uint8_t weeklyLogNum) {
+    weeklyLog_t *wlP = getWeeklyLogAddr(weeklyLogNum);
     bool isReady = !wlP->clearOnReady[dayOfTheWeek];
     return isReady;
 }
@@ -1013,10 +1253,11 @@ static bool isDailyLogReady(uint8_t dayOfTheWeek) {
 *        been transmitted.
 * 
 * @param dayOfTheWeek The day of the week to record
+* @param weeklyLogNum The weekly log container to use
 */
-static void markDailyLogAsTransmitted(uint8_t dayOfTheWeek) {
+static void markDailyLogAsTransmitted(uint8_t dayOfTheWeek, uint8_t weeklyLogNum) {
     uint8_t zeroVal = 0;
-    weeklyLog_t *wlP = WEEKLY_LOG_ADDRESS_IN_FLASH;
+    weeklyLog_t *wlP = getWeeklyLogAddr(weeklyLogNum);
     uint8_t *entryP = (uint8_t *)&(wlP->clearOnTransmit[dayOfTheWeek]);
     if (dayOfTheWeek >= TOTAL_DAYS_IN_A_WEEK) {
         return;
@@ -1029,9 +1270,10 @@ static void markDailyLogAsTransmitted(uint8_t dayOfTheWeek) {
 *        transmitted.
 * 
 * @param dayOfTheWeek The day of the week to record
+* @param weeklyLogNum The weekly log container to use
 */
-static bool wasDailyLogTransmitted(uint8_t dayOfTheWeek) {
-    weeklyLog_t *wlP = WEEKLY_LOG_ADDRESS_IN_FLASH;
+static bool wasDailyLogTransmitted(uint8_t dayOfTheWeek, uint8_t weeklyLogNum) {
+    weeklyLog_t *wlP = getWeeklyLogAddr(weeklyLogNum);
     // If zero, it means we transmitted packet.
     return (wlP->clearOnTransmit[dayOfTheWeek] ? false : true);
 }

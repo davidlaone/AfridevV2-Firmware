@@ -182,17 +182,10 @@ typedef struct modemCmdData_s {
  *        command file to live right below the stack space in
  *        RAM.
  */
-#ifdef __IAR_SYSTEMS_ICC__
-	#pragma dataseg=COMM_BUFS
-	    __no_init uint8_t isrRxBuf[ISR_RX_BUF_SIZE];  /**< buffer used to tx and rx data to/from */
-	    __no_init uint8_t isrTxBuf[ISR_TX_BUF_SIZE];  /**< buffer used to tx and rx data to/from */
-	#pragma dataseg=default
-#elif defined (__TI_COMPILER_VERSION__)
-	#pragma SET_DATA_SECTION(".commbufs")
-	    uint8_t isrRxBuf[ISR_RX_BUF_SIZE];  /**< buffer used to tx and rx data to/from */
-	    uint8_t isrTxBuf[ISR_TX_BUF_SIZE];  /**< buffer used to tx and rx data to/from */
-	#pragma SET_DATA_SECTION()
-#endif
+#pragma SET_DATA_SECTION(".commbufs")
+	uint8_t isrRxBuf[ISR_RX_BUF_SIZE];  /**< buffer used to tx and rx data to/from */
+	uint8_t isrTxBuf[ISR_TX_BUF_SIZE];  /**< buffer used to tx and rx data to/from */
+#pragma SET_DATA_SECTION()
 
 /**
  * \var mcData

@@ -361,7 +361,7 @@ typedef struct modemCmdReadData_s {
  *        firmware upgrade.  All other OTA payload data length
  *        is currently less than 16 bytes.
  */
-#define OTA_PAYLOAD_MAX_RX_READ_LENGTH ((uint16_t)16)
+#define OTA_PAYLOAD_MAX_RX_READ_LENGTH ((uint16_t)512)
 
 /**
  * \def OTA_RESPONSE_LENGTH
