@@ -60,7 +60,8 @@ typedef enum otaState_e {
  * \li byte 7   = readWidth
  * \li byte 8   = start of return data
  */
-#define MAX_OTA_MEMORY_READ_BYTES (OTA_RESPONSE_DATA_LENGTH - 8)
+// #define MAX_OTA_MEMORY_READ_BYTES (OTA_PAYLOAD_BUF_LENGTH - 8)
+#define MAX_OTA_MEMORY_READ_BYTES (255)
 
 /**
  * \typedef otaData_t
@@ -109,7 +110,10 @@ static uint8_t otaMsgMgr_getOtaLength(void);
 static bool otaMsgMgr_processGmtClocksetPart1(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processGmtClocksetPart2(void);
 static bool otaMsgMgr_processLocalOffset(otaResponse_t *otaRespP);
+static bool otaMsgMgr_processResetData(otaResponse_t *otaRespP);
+static bool otaMsgMgr_processResetRedFlag(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processActivateDevice(otaResponse_t *otaRespP);
+static bool otaMsgMgr_processSilenceDevice(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processFirmwareUpgrade(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processResetDevice(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processSetTransmissionRate(otaResponse_t *otaRespP);
@@ -126,6 +130,26 @@ static void prepareOtaResponse(uint8_t opcode, uint8_t msgId0, uint8_t msgId1,
 /***************************
  * Module Public Functions
  **************************/
+
+// For debug support - trace the state transitions.  Not used by default.
+//#define STATE_TRACE
+#ifdef STATE_TRACE
+#define MAX_STATE_TRACE_SIZE 64
+typedef struct state_trace_s {
+    otaState_t state;
+    OtaOpcode_t arg;
+} state_trace_t;
+state_trace_t stateTrace[MAX_STATE_TRACE_SIZE];
+uint8_t stateTraceIndex = 0;
+void addStateTracePoint(otaState_t state, OtaOpcode_t b1) {
+    stateTrace[stateTraceIndex].state  = state;
+    stateTrace[stateTraceIndex].arg = b1;
+    stateTraceIndex++;
+    stateTraceIndex &= (MAX_STATE_TRACE_SIZE - 1);
+}
+#else
+#define addStateTracePoint(a,b)
+#endif
 
 /**
 * \brief Exec routine should be called as part of the main 
@@ -150,6 +174,7 @@ void otaMsgMgr_init(void) {
     memset(&otaData, 0, sizeof(otaData_t));
     otaData.otaState = OTA_STATE_IDLE;
     otaData.responseBufP = modemMgr_getSharedBuffer();
+    addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
 }
 
 /**
@@ -165,6 +190,7 @@ void otaMsgMgr_init(void) {
 void otaMsgMgr_getAndProcessOtaMsgs(void) {
     otaData.active = true;
     otaData.otaState = OTA_STATE_SEND_OTA_CMD_PHASE0;
+    addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
     otaData.totalMsgsProcessed = 0;
     otaData.gmtCandidateMsgId = 0;
     otaData.gmtTimeUpdateCandidate = false;
@@ -270,13 +296,16 @@ static void otaMsgMgr_stateMachine(void) {
         case OTA_STATE_SEND_OTA_CMD_PHASE0:
             sendPhase0_OtaCommand();
             otaData.otaState = OTA_STATE_OTA_CMD_PHASE0_WAIT;
+            addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
             break;
         case OTA_STATE_OTA_CMD_PHASE0_WAIT:
             if (modemMgr_isModemCmdError()) {
                 otaData.otaState = OTA_STATE_SEND_DELETE_OTA_CMD;
+                addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
                 continue_processing = true;
             } else if (modemMgr_isModemCmdComplete()) {
                 otaData.otaState = OTA_STATE_PROCESS_OTA_CMD_PHASE0;
+                addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
                 continue_processing = true;
             }
             break;
@@ -284,6 +313,7 @@ static void otaMsgMgr_stateMachine(void) {
             otaMsgByteLength = otaMsgMgr_getOtaLength();
             otaData.otaState = otaMsgByteLength ?
                 OTA_STATE_SEND_OTA_CMD_PHASE1 : OTA_STATE_SEND_DELETE_OTA_CMD;
+            addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
             continue_processing = true;
             break;
 
@@ -294,13 +324,16 @@ static void otaMsgMgr_stateMachine(void) {
         case OTA_STATE_SEND_OTA_CMD_PHASE1:
             sendPhase1_OtaCommand(otaMsgByteLength);
             otaData.otaState = OTA_STATE_OTA_CMD_PHASE1_WAIT;
+            addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
             break;
         case OTA_STATE_OTA_CMD_PHASE1_WAIT:
             if (modemMgr_isModemCmdError()) {
                 otaData.otaState = OTA_STATE_SEND_DELETE_OTA_CMD;
+                addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
                 continue_processing = true;
             } else if (modemMgr_isModemCmdComplete()) {
                 otaData.otaState = OTA_STATE_PROCESS_OTA_CMD_PHASE1;
+                addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
                 continue_processing = true;
             }
             break;
@@ -312,8 +345,10 @@ static void otaMsgMgr_stateMachine(void) {
                 // Check status flags to determine next state
                 if (otaData.sendOtaResponse) {
                     otaData.otaState = OTA_STATE_SEND_OTA_RESPONSE;
+                    addStateTracePoint(otaData.otaState, otaData.lastMsgOpcode);
                 } else if (otaData.deleteOtaMessage) {
                     otaData.otaState = OTA_STATE_SEND_DELETE_OTA_CMD;
+                    addStateTracePoint(otaData.otaState, otaData.lastMsgOpcode);
                 }
 
                 continue_processing = true;
@@ -327,6 +362,7 @@ static void otaMsgMgr_stateMachine(void) {
             modemMgr_sendModemCmdBatch(&otaData.cmdWrite);
             otaData.sendOtaResponse = false;
             otaData.otaState = OTA_STATE_SEND_OTA_RESPONSE_WAIT;
+            addStateTracePoint(otaData.otaState, (OtaOpcode_t)otaData.cmdWrite.payloadP[14]);
             break;
         case OTA_STATE_SEND_OTA_RESPONSE_WAIT:
             // Wait until modem manager is done sending the OTA message
@@ -341,8 +377,10 @@ static void otaMsgMgr_stateMachine(void) {
                     otaData.otaState = OTA_STATE_POST_PROCESS;
                 } else if (otaData.deleteOtaMessage) {
                     otaData.otaState = OTA_STATE_SEND_DELETE_OTA_CMD;
+                    addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
                 } else {
                     otaData.otaState = OTA_STATE_CHECK_FOR_MORE_MESSAGES;
+                    addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
                 }
                 continue_processing = true;
             }
@@ -355,6 +393,7 @@ static void otaMsgMgr_stateMachine(void) {
             sendDelete_OtaCommand();
             otaData.deleteOtaMessage = false;
             otaData.otaState = OTA_STATE_DELETE_OTA_CMD_WAIT;
+            addStateTracePoint(otaData.otaState, otaData.lastMsgOpcode);
             break;
         case OTA_STATE_DELETE_OTA_CMD_WAIT:
             if (modemMgr_isModemCmdError() || modemMgr_isModemCmdComplete()) {
@@ -366,6 +405,7 @@ static void otaMsgMgr_stateMachine(void) {
                     otaData.otaState = OTA_STATE_POST_PROCESS;
                 } else {
                     otaData.otaState = OTA_STATE_CHECK_FOR_MORE_MESSAGES;
+                    addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
                 }
                 continue_processing = true;
             }
@@ -378,8 +418,10 @@ static void otaMsgMgr_stateMachine(void) {
                 otaData.sendOtaResponse = false;
                 otaData.deleteOtaMessage = false;
                 otaData.otaState = OTA_STATE_SEND_OTA_CMD_PHASE0;
+                addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
             }  else {
                 otaData.otaState = OTA_STATE_POST_PROCESS;
+                addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
             }
             break;
 
@@ -390,15 +432,18 @@ static void otaMsgMgr_stateMachine(void) {
             if (otaData.sendOtaResponse && (otaData.totalPostMessagesSent < 50)) {
                 // Post processing needs to send an OTA response.
                 otaData.otaState = OTA_STATE_SEND_OTA_RESPONSE;
+                addStateTracePoint(otaData.otaState, (OtaOpcode_t)otaData.cmdWrite.payloadP[14]);
                 otaData.totalPostMessagesSent++;
             } else {
                 otaData.otaState = OTA_STATE_DONE;
+                addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
             }
             break;
 
         case OTA_STATE_DONE:
             // We are done.  Update state and status flags.
             otaData.otaState = OTA_STATE_IDLE;
+            addStateTracePoint(otaData.otaState, (OtaOpcode_t)0);
             otaData.active = false;
             break;
         }
@@ -786,6 +831,62 @@ static bool otaMsgMgr_processLocalOffset(otaResponse_t *otaRespP) {
 }
 
 /**
+* \brief (msgId=0x3) Process the Reset Data OTA command.  
+* 
+* \brief Input OTA parameters
+* \li msg opcode (1 byte)
+* \li msg id     (2 bytes)
+*  
+* \brief Output OTA response
+* \li msg opcode (1 byte)
+* \li msg id     (2 bytes)
+* \li status     (1 byte): 1 = success, 0xFF = failure
+*
+* @param otaRespP Pointer to the response data and other info
+*                 received from the modem.
+*
+* @return bool Set to true if a OTA response should be sent
+*/
+static bool otaMsgMgr_processResetData(otaResponse_t *otaRespP) {
+    uint8_t *responseDataP = &otaData.responseBufP[RESPONSE_DATA_OFFSET];
+    storageMgr_overrideUnitActivation(false);
+    storageMgr_resetRedFlagAndMap();
+    storageMgr_resetWeeklyLogs();
+    // Prepare OTA response.  It will be sent after this function exits.
+    prepareOtaResponse(otaRespP->buf[0], otaRespP->buf[1], otaRespP->buf[2], NULL, 0);
+    // Add response data
+    *responseDataP = 1;  // success status
+    return true;
+}
+
+/**
+* \brief (msgId=0x4) Process the Reset Red Flag OTA command.  
+* 
+* \brief Input OTA parameters
+* \li msg opcode (1 byte)
+* \li msg id     (2 bytes)
+*  
+* \brief Output OTA response
+* \li msg opcode (1 byte)
+* \li msg id     (2 bytes)
+* \li status     (1 byte): 1 = success, 0xFF = failure
+*
+* @param otaRespP Pointer to the response data and other info
+*                 received from the modem.
+*
+* @return bool Set to true if a OTA response should be sent
+*/
+static bool otaMsgMgr_processResetRedFlag(otaResponse_t *otaRespP) {
+    uint8_t *responseDataP = &otaData.responseBufP[RESPONSE_DATA_OFFSET];
+    storageMgr_resetRedFlag();
+    // Prepare OTA response.  It will be sent after this function exits.
+    prepareOtaResponse(otaRespP->buf[0], otaRespP->buf[1], otaRespP->buf[2], NULL, 0);
+    // Add response data
+    *responseDataP = 1;  // success status
+    return true;
+}
+
+/**
 * \brief (msgId=0x5) Process Activate Device OTA command.  
 * 
 * \brief Input OTA parameters
@@ -805,6 +906,33 @@ static bool otaMsgMgr_processLocalOffset(otaResponse_t *otaRespP) {
 static bool otaMsgMgr_processActivateDevice(otaResponse_t *otaRespP) {
     uint8_t *responseDataP = &otaData.responseBufP[RESPONSE_DATA_OFFSET];
     storageMgr_overrideUnitActivation(true);
+    // Prepare OTA response.  It will be sent after this function exits.
+    prepareOtaResponse(otaRespP->buf[0], otaRespP->buf[1], otaRespP->buf[2], NULL, 0);
+    // Add response data
+    *responseDataP = 1;  // success status
+    return true;
+}
+
+/**
+* \brief (msgId=0x6) Process De-Activate Device OTA command.  
+* 
+* \brief Input OTA parameters
+* \li msg opcode (1 byte)
+* \li msg id     (2 bytes)
+*  
+* \brief Output OTA response
+* \li msg opcode (1 byte)
+* \li msg id     (2 bytes)
+* \li status     (1 byte): 1 = success, 0xFF = failure
+*
+* @param otaRespP Pointer to the response data and other info
+*                 received from the modem.
+*
+* @return bool Set to true if a OTA response should be sent
+*/
+static bool otaMsgMgr_processSilenceDevice(otaResponse_t *otaRespP) {
+    uint8_t *responseDataP = &otaData.responseBufP[RESPONSE_DATA_OFFSET];
+    storageMgr_overrideUnitActivation(false);
     // Prepare OTA response.  It will be sent after this function exits.
     prepareOtaResponse(otaRespP->buf[0], otaRespP->buf[1], otaRespP->buf[2], NULL, 0);
     // Add response data
@@ -840,7 +968,7 @@ static bool otaMsgMgr_processSetTransmissionRate(otaResponse_t *otaRespP) {
     // Prepare OTA response.  It will be sent after this function exits.
     prepareOtaResponse(otaRespP->buf[0], otaRespP->buf[1], otaRespP->buf[2], NULL, 0);
 
-    if (transmissionRateInDays != 1 && transmissionRateInDays != 7) {
+    if (transmissionRateInDays == 0 || transmissionRateInDays > (6 * 7)) {
         // Add OTA response data
         *responseDataP++ = 0xff; // error status
         *responseDataP++ = transmissionRateInDays;
@@ -979,38 +1107,53 @@ static bool otaMsgMgr_processClockRequest(otaResponse_t *otaRespP) {
 * @return bool Set to true if a OTA response should be sent
 */
 static bool otaMsgMgr_processFirmwareUpgrade(otaResponse_t *otaRespP) {
-    bool status = false;
-    uint8_t sentCrcMsb;
-    uint8_t sentCrcLsb;
-    uint8_t *responseDataP = &otaData.responseBufP[RESPONSE_DATA_OFFSET];
     uint8_t *bufP = otaRespP->buf;
+    uint8_t retryCount = 0;
+    fwUpdateResult_t fwUpdateResult = RESULT_NO_FWUPGRADE_PERFORMED;
+    uint16_t crc;
+    uint8_t *responseDataP = &otaData.responseBufP[RESPONSE_DATA_OFFSET];
+
     // Verify the firmware upgrade keys in the message.
     if ((bufP[3] == FLASH_UPGRADE_KEY1) &&
         (bufP[4] == FLASH_UPGRADE_KEY2) &&
         (bufP[5] == FLASH_UPGRADE_KEY3) &&
         (bufP[6] == FLASH_UPGRADE_KEY4)) {
-        // To process the firmware upgrade message, we want to boot into the bootloader.
-        // Initialize variables so no other OTA processing will be performed, and 
-        // a reboot sequence will be started in the post-processing function.
-        otaData.activateReboot = ACTIVATE_REBOOT_KEY;
-        otaData.activateFwUpgrade = ACTIVATE_FWUPGRADE_KEY;
-        status = true;
+
+        // Retry up to four times to retrieve the upgrade data and burn into flash.
+        do {
+            // Run the special firmware upgrade state machine.
+            fwUpdateResult = otaUpgrade_processOtaUpgradeMessage();
+        } while ((fwUpdateResult != RESULT_DONE_SUCCESS) && (retryCount++ < 4));
     }
+
+
     // Prepare OTA response.  It will be sent after this function exits.
-    sentCrcMsb = bufP[14];  // Sent CRC from received message - MSB
-    sentCrcLsb = bufP[15];  // Sent CR from received messageC - LSB
-    prepareOtaResponse(otaRespP->buf[0], otaRespP->buf[1], otaRespP->buf[2], NULL, 0);
-    if (status == true) {
-        // Add response data
-        *responseDataP++ = 1;  // success status
-    } else {
-        // Add response data
-        *responseDataP++ = 0xFF;  // failure status
+    prepareOtaResponse(OTA_OPCODE_FIRMWARE_UPGRADE,
+                       otaData.lastMsgId >> 8,
+                       otaData.lastMsgId & 0xFF,
+                       NULL, 0);
+    // Prepare OTA response data
+    *responseDataP++ = (fwUpdateResult == RESULT_DONE_SUCCESS) ? 0x1 : 0xFF;
+    *responseDataP++ = (fwUpdateResult == RESULT_DONE_SUCCESS) ? 0x0 : otaUpgrade_getErrorCode();
+    // Return the received CRC and the calculated CRC
+    crc = otaUpgrade_getFwMessageCrc();
+    *responseDataP++ = crc >> 8;
+    *responseDataP++ = crc & 0xFF;
+    crc = otaUpgrade_getFwCalculatedCrc();
+    *responseDataP++ = crc >> 8;
+    *responseDataP++ = crc & 0xFF;
+
+    if (fwUpdateResult == RESULT_DONE_SUCCESS) {
+        // Update the APP record with new firmware info.  The bootloader uses
+        // information to copy the new image from the second image location to the
+        // main image location.
+        appRecord_updateFwInfo(true, otaUpgrade_getFwMessageCrc());
+
+        // Set the reboot flag to allow a reboot to start after
+        // all other OTA message processing is complete.
+        otaData.activateReboot = ACTIVATE_REBOOT_KEY;
     }
-    // Add the sent CRC to the response buffer
-    *responseDataP++ = sentCrcMsb;  // Sent CRC 
-    *responseDataP++ = sentCrcLsb;  // Sent CRC 
-    return status;
+    return true;
 }
 
 /**
@@ -1169,8 +1312,17 @@ static void otaMsgMgr_processOtaMsg(void) {
     case OTA_OPCODE_LOCAL_OFFSET:
         sendOtaResponse = otaMsgMgr_processLocalOffset(otaRespP);
         break;
+    case OTA_OPCODE_RESET_DATA:
+        sendOtaResponse = otaMsgMgr_processResetData(otaRespP);
+        break;
+    case OTA_OPCODE_RESET_RED_FLAG:
+        sendOtaResponse = otaMsgMgr_processResetRedFlag(otaRespP);
+        break;
     case OTA_OPCODE_ACTIVATE_DEVICE:
         sendOtaResponse = otaMsgMgr_processActivateDevice(otaRespP);
+        break;
+    case OTA_OPCODE_SILENCE_DEVICE:
+        sendOtaResponse = otaMsgMgr_processSilenceDevice(otaRespP);
         break;
     case OTA_OPCODE_FIRMWARE_UPGRADE:
         sendOtaResponse = otaMsgMgr_processFirmwareUpgrade(otaRespP);

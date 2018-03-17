@@ -77,11 +77,6 @@ static volatile uint32_t seconds_since_boot;
 static volatile uint8_t ticks_per_second;
 
 /**
- * \note This is defined in CTS_HAL.c.
- */
-extern uint8_t CAPSENSE_ACTIVE;
-
-/**
 * \brief Initialize and start timerA0 for the one second system 
 *        tick.  Uses Timer A0, capture/control channel 0, vector
 *        9, 0xFFF2. Initialize to use ACLK which is running at

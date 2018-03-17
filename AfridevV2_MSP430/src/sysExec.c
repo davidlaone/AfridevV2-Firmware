@@ -367,9 +367,9 @@ static void startUpMessageCheck(void) {
             // erased by the bootloader after a new firmware upgrade has been
             // performed before jumping to the new Application code.
             // The Application Record is located in the flash INFO C section.
-            if (!checkForApplicationRecord()) {
+            if (!appRecord_checkForValidAppRecord()) {
                 // If the record is not found, write one.
-                initApplicationRecord();
+                appRecord_initAppRecord();
             }
             sendStartUpMsg2();
             sysExecData.startUpMsg2WasSent = true;

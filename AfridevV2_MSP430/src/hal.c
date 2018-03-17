@@ -44,20 +44,7 @@
 *
 ******************************************************************************/
 
-/**
-* \brief One time init of all clock related subsystems after 
-*        boot up.
-* \ingroup PUBLIC_API
-*/
-void hal_sysClockInit(void) {
-    DCOCTL = 0;               // Select lowest DCOx and MODx settings
-    BCSCTL1 = CALBC1_1MHZ;    // Set DCO
-    DCOCTL = CALDCO_1MHZ;
 
-    BCSCTL1 |= DIVA_0;        // ACLK/1 [ACLK/(0:1,1:2,2:4,3:8)]
-    BCSCTL2 = 0;              // SMCLK [SMCLK/(0:1,1:2,2:4,3:8)]
-    BCSCTL3 |= LFXT1S_0;      // LFXT1S0 32768-Hz crystal on LFXT1
-}
 
 /**
 * \brief One time init of all GPIO port pin related items after 
@@ -67,7 +54,7 @@ void hal_sysClockInit(void) {
 void hal_pinInit(void) {
 
     P1DIR  |= VBAT_GND + _1V8_EN + GSM_DCDC; // Output
-                                             // GSM_INT and GSM_STAT are GPIO inputs, set P1DIR to 0
+    // GSM_INT and GSM_STAT are GPIO inputs, set P1DIR to 0
     P1DIR  &= ~(GSM_INT + GSM_STATUS);
 
     // VBAT_GND controls VBAT sensing, default off (Active LOW)
@@ -111,8 +98,21 @@ void hal_uartInit(void) {
     UCA0BR0 = 0x03;               // 32 kHz 9600
     UCA0BR1 = 0x00;               // 32 kHz 9600
     UCA0MCTL = UCBRS0 + UCBRS1;   // Modulation UCBRSx = 3
-
     UCA0CTL1 &= ~UCSWRST;         // **Initialize USCI state machine**
-    UC0IE |= UCA0RXIE;            // Enable USCI_A0 RX interrupt
+}
+
+/**
+* \brief One time init of all clock related subsystems after 
+*        boot up.
+* \ingroup PUBLIC_API
+*/
+void hal_sysClockInit(void) {
+    DCOCTL = 0;               // Select lowest DCOx and MODx settings
+    BCSCTL1 = CALBC1_1MHZ;    // Set DCO
+    DCOCTL = CALDCO_1MHZ;
+
+    BCSCTL1 |= DIVA_0;        // ACLK/1 [ACLK/(0:1,1:2,2:4,3:8)]
+    BCSCTL2 = 0;              // SMCLK [SMCLK/(0:1,1:2,2:4,3:8)]
+    BCSCTL3 |= LFXT1S_0;      // LFXT1S0 32768-Hz crystal on LFXT1
 }
 

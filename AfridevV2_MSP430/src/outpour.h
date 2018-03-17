@@ -491,6 +491,28 @@ void otaMsgMgr_stopOtaProcessing(void);
 bool otaMsgMgr_isOtaProcessingDone(void);
 
 /*******************************************************************************
+* msgOtaUpgrade.c
+*******************************************************************************/
+
+/**
+ * \typedef fwUpdateResult_t
+ * \brief Specify the different status results that the firmware
+ *        update state machine can exit in.
+ */
+typedef enum fwUpdateResult_e {
+    RESULT_NO_FWUPGRADE_PERFORMED =  0,
+    RESULT_DONE_SUCCESS           =  1,
+    RESULT_DONE_ERROR             = -1,
+} fwUpdateResult_t;
+
+fwUpdateResult_t otaUpgrade_processOtaUpgradeMessage(void);
+fwUpdateResult_t otaUpgrade_getFwUpdateResult(void);
+uint16_t otaUpgrade_getFwMessageCrc(void);
+uint16_t otaUpgrade_getFwCalculatedCrc(void);
+uint16_t otaUpgrade_getFwLength(void);
+uint8_t otaUpgrade_getErrorCode(void);
+
+/*******************************************************************************
 * msgDebug.c
 *******************************************************************************/
 
@@ -543,13 +565,6 @@ void dataMsgSm_sendAnotherDataMsg(dataMsgSm_t *dataMsgP);
 void dataMsgSm_stateMachine(dataMsgSm_t *dataMsgP);
 
 /*******************************************************************************
-* msgFinalAssembly.c
-*******************************************************************************/
-void fassMsgMgr_exec(void);
-void fassMsgMgr_init(void);
-void fassMsgMgr_sendFassMsg(void);
-
-/*******************************************************************************
 * time.c
 *******************************************************************************/
 /**
@@ -571,6 +586,11 @@ void getBinTime(timePacket_t *tpP);
 uint8_t bcd_to_char(uint8_t bcdValue);
 uint32_t getSecondsSinceBoot(void);
 
+// WDTPW+WDTCNTCL+WDTSSEL
+// 1 second time out, uses ACLK
+#define WATCHDOG_TICKLE() (WDTCTL = WDT_ARST_1000)
+#define WATCHDOG_STOP() (WDTCTL = WDTPW | WDTHOLD)
+
 /*******************************************************************************
 * storage.c
 *******************************************************************************/
@@ -578,6 +598,9 @@ void storageMgr_init(void);
 void storageMgr_exec(uint16_t currentFlowRateInSecML);
 void storageMgr_overrideUnitActivation(bool flag);
 uint16_t storageMgr_getDaysActivated(void);
+void storageMgr_resetRedFlag(void);
+bool storageMgr_getRedFlagConditionStatus (void);
+void storageMgr_resetRedFlagAndMap(void);
 void storageMgr_resetWeeklyLogs(void);
 void storageMgr_setStorageAlignmentTime(uint8_t alignSecond, uint8_t alignMinute, uint8_t alignHour24);
 void storageMgr_setTransmissionRate(uint8_t transmissionRateInDays);
@@ -637,21 +660,18 @@ void msp430Flash_write_int32(uint8_t *flashP, uint32_t val32);
 #define FLASH_UPGRADE_KEY3 ((uint8_t)0x59)
 #define FLASH_UPGRADE_KEY4 ((uint8_t)0x26)
 
-#define APR_LOCATION ((uint8_t *)0x1040)  // INFO C
-#define APR_MAGIC1 ((uint16_t)0x1234)
-#define APR_MAGIC2 ((uint16_t)0x5678)
-
-/**
- * \typedef appRecord_t
- * \brief This structure is used to put an application record in 
- *        one of the INFO sections.  The structure is used to
- *        tell the bootloader that application has started.
- */
-typedef struct appRecord_e {
-    uint16_t magic1;
-    uint16_t magic2;
-    uint16_t crc16;
-} appRecord_t;
+/*******************************************************************************
+* appRecord.c
+*******************************************************************************/
+bool appRecord_initAppRecord(void);
+bool appRecord_checkForValidAppRecord(void);
+bool appRecord_checkForNewFirmware(void);
+bool appRecord_updateFwInfo(bool newFwIsReady, uint16_t newFwCrc);
+bool appRecord_getNewFirmwareInfo(bool *newFwReadyP, uint16_t *newFwCrcP);
+void appRecord_erase();
+#if 0
+void appRecord_test(void);
+#endif
 
 /*******************************************************************************
 * MsgSchedule.c 

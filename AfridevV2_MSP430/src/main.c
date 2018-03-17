@@ -13,6 +13,12 @@
  * Module Data Definitions
  **************************/
 
+/****************************
+ * Module Data Declarations
+ ***************************/
+
+static uint8_t rebootReason;    /* Read from the MSP430 to identify boot reason */
+
 /**************************
  * Module Prototypes
  **************************/
@@ -28,7 +34,12 @@
 */
 int main(void) {
 
-    WDTCTL = WDTPW | WDTHOLD;   // Stop watchdog timer
+    // (Re)start and tickle the watchdog.  The watchdog is initialized for a
+    // one second timeout.
+    WATCHDOG_TICKLE();
+
+    // Store the status of the reboot reason (POR, Watchdog, Reset, etc).
+    rebootReason = IFG1;
 
     // Perform Hardware Initialization
     hal_sysClockInit();
@@ -46,6 +57,17 @@ int main(void) {
     while (1);
 }
 
+/**
+* \brief Utility function to return the value of the IFG1 
+*        register read at app startup.
+* 
+* @return uint8_t Contents of IFG1 register read at start of 
+*         program.
+*/
+uint8_t getLastRebootReason (void) {
+    return rebootReason;
+}
+
 /**********************
  * Private Functions 
  **********************/
@@ -55,7 +77,7 @@ int main(void) {
 * \brief A catastrophic situation has occurred.  Restart system.
 */
 void sysError(void) {
-#if 0
+#if 1
     // For development, loop infinitely.
     while (1);
 #else
@@ -74,7 +96,7 @@ void sysError(void) {
 extern __interrupt void ISR_Timer1_A0(void);
 extern __interrupt void USCI0TX_ISR(void);
 extern __interrupt void USCI0RX_ISR(void);
-extern __interrupt void watchdog_timer(void);
+extern __interrupt void TIMERB0_VECTOR;
 
 /******************************************************************************
  *
@@ -83,11 +105,11 @@ extern __interrupt void watchdog_timer(void);
  *
  * @return  none
  *****************************************************************************/
-__interrupt void Dummy_Isr(void)
-{
+__interrupt void Dummy_Isr(void) {
     // Something catastrophic has happened.
     // Erase the application record so that the bootloader will go into SOS mode.
-    msp430Flash_erase_segment(APR_LOCATION);
+   appRecord_erase();
+
     // Force watchdog reset
     WDTCTL = 0xDEAD;
     while(1);
@@ -104,7 +126,7 @@ __interrupt void Dummy_Isr(void)
  *         interrupt vector is not used by the application, the
  *         Dummy_Isr function pointer is used.  Currently the
  *         only interrupts used by the application are the
- *         timer and UART rx/tx.
+ *         A0 timer, B0 timer and UART rx/tx.
  *
  * \brief Some details about the proxy table;
  * \li It always resides in the same location as specified in
@@ -174,13 +196,13 @@ const uint16_t ProxyVectorTable[] =
 /**
 * \defgroup ISR Interrupt Handler API
 * \brief Interrupt handler for the system.  Currently there are 
-*        three types used:  UART, A0 Timer and Watchdog timer.
+*        three types used:  UART, A0 Timer and B0 Timer.
 *        \li The Uart has an individual ISR for transmit and
 *        receive.
 *        \li The A0 Timer interrupt is a one second tick timer
 *        used to bring the system out of low power mode and
 *        initiate the main loop processing.
-*        \li The Watchdog timer interrupt is used as part of the
+*        \li The B0 Timer interrupt is used as part of the
 *        Capacitive touch processing.
 */
 

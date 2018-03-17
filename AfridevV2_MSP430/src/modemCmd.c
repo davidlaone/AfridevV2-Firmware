@@ -744,11 +744,6 @@ __interrupt void USCI0TX_ISR(void) {
         mcData.txIsrMsgComplete = true;
         break;
     }
-	
-	// Catch to go back into LPM in case we try to process UART/I2C while taking capsense data
-    if (CAPSENSE_ACTIVE){
-    	__bis_SR_register_on_exit(LPM3_bits + GIE); // continue waiting for the WDT interrupt
-    }
 }
 
 /**
