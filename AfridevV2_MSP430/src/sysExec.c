@@ -23,7 +23,7 @@
  *        has completed transmitting, the same delay is used to
  *        determine when to transmit the second startup message.
  */
-#define START_UP_MSG_TX_DELAY_IN_SECONDS ((uint8_t)30)
+#define START_UP_MSG_TX_DELAY_IN_SECONDS ((uint8_t)10)
 
 /**
  * \def REBOOT_DELAY_IN_SECONDS
@@ -150,6 +150,9 @@ void sysExec_exec(void) {
     // Enable the global interrupt
     enableGlobalInterrupt();
 
+    // For testing GPS only!!!! 
+    // gps_start();
+
     // Start the infinite exec main loop
     while (1) {
 
@@ -218,12 +221,14 @@ void sysExec_exec(void) {
                 }
             }
 
+#if 0
 #ifdef PRODUCTION_CODE
             // Two messages are transmitted shortly after the system starts:
             // The final assembly message and a monthly check-in message.
             if (!sysExecData.startUpMsg1WasSent || !sysExecData.startUpMsg2WasSent) {
                 startUpMessageCheck();
             }
+#endif
 #endif
 
 #ifdef SEND_DEBUG_INFO_TO_UART
@@ -389,6 +394,7 @@ static void sendStartUpMsg1(void) {
     uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_FINAL_ASSEMBLY);
     // Initiate sending the final assembly message
     dataMsgMgr_sendDataMsg(MSG_TYPE_FINAL_ASSEMBLY, payloadP, payloadSize);
+    // dataMsgMgr_sendTestMsg(MSG_TYPE_FINAL_ASSEMBLY, payloadP, payloadSize);
 }
 
 /**
@@ -403,6 +409,7 @@ static void sendStartUpMsg2(void) {
     uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_CHECKIN);
     // Initiate sending the monthly check-in message
     dataMsgMgr_sendDataMsg(MSG_TYPE_CHECKIN, payloadP, payloadSize);
+    // dataMsgMgr_sendTestMsg(MSG_TYPE_FINAL_ASSEMBLY, payloadP, payloadSize);
 }
 
 /**

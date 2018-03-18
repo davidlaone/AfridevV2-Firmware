@@ -8,7 +8,7 @@
  */
 
 // Example valid RMC message
-// $GNRMC,020730.000,A,3716.1771,N,12156.0343,W,0.00,73.54,260218,,,A*58
+// $GPRMC,020730.000,A,3716.1771,N,12156.0343,W,0.00,73.54,260218,,,A*58
 
 
 #include "outpour.h"
@@ -63,7 +63,7 @@ gpsMsgData_t gpsMsgData;
 * Used to look for the RMC ASCII letters in a NMEA message 
 * sentence.
 */
-static const uint8_t gnrmc_match_template[] = { '$', 'G', 'N', 'R', 'M', 'C' };
+static const uint8_t gnrmc_match_template[] = { '$', 'G', 'P', 'R', 'M', 'C' };
 
 /*************************
  * Module Prototypes

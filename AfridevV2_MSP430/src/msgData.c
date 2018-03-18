@@ -243,3 +243,49 @@ bool dataMsgMgr_sendDataMsg(MessageType_t msgId, uint8_t *dataP, uint16_t length
     return true;
 }
 
+/**
+* \brief Used by upper layers to send a cascade test msg to the
+*        modem. This kicks off a multi-module/multi state
+*        machine sequence for sending the data command to the
+*        modem.
+*
+* \ingroup PUBLIC_API
+*  
+* \note If the modem does not connect to the network within a
+*       specified time frame (WAIT_FOR_LINK_UP_TIME_IN_SECONDS),
+*       then one retry will be scheduled for the future.
+* 
+* @param msgId The cascade message identifier
+* @param dataP Pointer to the data to send
+* @param lengthInBytes The length of the data to send.
+*/
+bool dataMsgMgr_sendTestMsg(MessageType_t msgId, uint8_t *dataP, uint16_t lengthInBytes) {
+    dataMsgSm_t *dataMsgSmP = &msgData.dataMsgSm;
+
+    // If already busy, just return.
+    // Should never happen, but just in case.
+    if (msgData.sendDataMsgActive) {
+        return false;
+    }
+
+    // Note - a new data transmission will cancel any scheduled re-transmission
+
+    msgData.sendDataMsgActive = true;
+    msgData.sendDataMsgRetryScheduled = false;
+    msgData.retryCount = 0;
+    msgData.secsTillTransmit = 0;
+
+    // Initialize the data msg object.
+    dataMsgSm_initForNewSession(dataMsgSmP);
+
+    // Initialize the data command object in the data object
+    dataMsgSmP->cmdWrite.cmd             = OUTPOUR_M_COMMAND_SEND_TEST;
+    dataMsgSmP->cmdWrite.payloadMsgId    = msgId;          /* the payload type */
+    dataMsgSmP->cmdWrite.payloadP        = dataP;          /* the payload pointer */
+    dataMsgSmP->cmdWrite.payloadLength   = lengthInBytes;  /* size of the payload in bytes */
+
+    // Call the state machine
+    dataMsgSm_stateMachine(dataMsgSmP);
+
+    return true;
+}

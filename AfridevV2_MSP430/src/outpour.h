@@ -213,20 +213,31 @@ typedef enum padId_e {
 } padId_t;
 
 // Give names to the various port pin numbers
-#define LS_VCC BIT5         // Pin 2.5
-#define RXD BIT5			// Pin 3.5
-#define TXD BIT4			// Pin 3.4
-#define GSM_STATUS BIT5		// Pin 1.5
-#define GSM_INT BIT4		// Pin 1.4
-#define GSM_EN BIT4			// Pin 2.4
-#define GSM_DCDC BIT2		// Pin 1.2 - GPIO
-#define VBAT_GND BIT1		// Pin 1.1 - GPIO
-#define VBAT_MON BIT0		// Pin 2.0
-#define _1V8_EN BIT3		// Pin 1.3 - GPIO
-#define I2C_DRV BIT3		// Pin 2.3
-#define I2C_SDA BIT1		// Pin 3.1
-#define I2C_SCL BIT2		// Pin 3.2
-#define GPS_ON_OFF BIT2		// Pin 4.2
+#define VBAT_GND BIT1		 // Pin 1.1, Output 
+#define GSM_DCDC BIT2		 // Pin 1.2, Output
+#define _1V8_EN BIT3		 // Pin 1.3, Output
+#define GSM_INT BIT4		 // Pin 1.4, Input
+#define GSM_STATUS BIT5		 // Pin 1.5, Input
+#define TM_GPS BIT6          // Pin 1.6, Input
+#define GPS_ON_IND BIT7      // Pin 1.7, Input
+
+#define VBAT_MON BIT0		 // Pin 2.0, ADC
+#define I2C_DRV BIT3		 // Pin 2.3, Output
+#define GSM_EN BIT4			 // Pin 2.4, Output
+#define LS_VCC BIT5          // Pin 2.5, Output
+
+#define I2C_SDA BIT1		 // Pin 3.1, Not Used
+#define I2C_SCL BIT2		 // Pin 3.2, Not Used
+#define NTC_ENABLE BIT3      // Pin 3.3, Output
+#define TXD BIT4			 // Pin 3.4, UART
+#define RXD BIT5			 // Pin 3.5, UART
+#define MSP_UART_SEL BIT7    // Pin 3.7, UART Select (Modem or GPS)
+
+#define GPS_ON_OFF BIT2		 // Pin 4.2, Output
+#define NTC_SENSE_INPUT BIT3 // Pin 4.3, ADC
+
+#define MODEM_UART_SELECT_ENABLE() (P3OUT &= ~MSP_UART_SEL)
+#define GPS_UART_SELECT_ENABLE() (P3OUT |= MSP_UART_SEL)
 
 /*******************************************************************************
 *  Centralized method for enabling and disabling MSP430 interrupts
@@ -479,6 +490,7 @@ void dataMsgMgr_exec(void);
 void dataMsgMgr_init(void);
 bool dataMsgMgr_isSendMsgActive(void);
 bool dataMsgMgr_sendDataMsg(MessageType_t msgId, uint8_t *dataP, uint16_t lengthInBytes);
+bool dataMsgMgr_sendTestMsg(MessageType_t msgId, uint8_t *dataP, uint16_t lengthInBytes);
 bool dataMsgMgr_startSendingScheduled(void);
 
 /*******************************************************************************
@@ -586,9 +598,11 @@ void getBinTime(timePacket_t *tpP);
 uint8_t bcd_to_char(uint8_t bcdValue);
 uint32_t getSecondsSinceBoot(void);
 
-// WDTPW+WDTCNTCL+WDTSSEL
+// Watchdog Macros
 // 1 second time out, uses ACLK
-#define WATCHDOG_TICKLE() (WDTCTL = WDT_ARST_1000)
+// #define WATCHDOG_TICKLE() (WDTCTL = WDT_ARST_1000)
+// For testing, don't enable watchdog
+#define WATCHDOG_TICKLE() (WDTCTL = WDTPW | WDTHOLD)
 #define WATCHDOG_STOP() (WDTCTL = WDTPW | WDTHOLD)
 
 /*******************************************************************************

@@ -13,20 +13,18 @@
  * Module Data Definitions
  **************************/
 
-#define GPS_1_8V_ENABLE_PIN BIT3       // Port 1
-#define UART_DEVICE_SELECT_PIN BIT7    // Port 3
-#define TIME_MARK_INPUT_PIN BIT6       // Port 1
-#define GPS_ON_OFF_PIN BIT2            // Port 4
-#define GPS_SYSTEM_ON_PIN BIT7         // Port 1
+// #define GPS_1_8V_ENABLE_PIN BIT3       // Port 1
+// #define UART_DEVICE_SELECT_PIN BIT7    // Port 3
+// #define TIME_MARK_INPUT_PIN BIT6       // Port 1
+// #define GPS_ON_OFF_PIN BIT2            // Port 4
+// #define GPS_SYSTEM_ON_PIN BIT7         // Port 1
 
-#if 0
-#define GPS_1_8V_ENABLE() (P1OUT |= GPS_1_8V_ENABLE_PIN)
-#define GPS_1_8V_DISABLE() (P1OUT &= ~GPS_1_8V_ENABLE_PIN)
-#define GPS_ON_OFF_HIGH() (P4OUT |= GPS_ON_OFF_PIN)
-#define GPS_ON_OFF_LOW() (P4OUT &= GPS_ON_OFF_PIN)
-#define GPS_UART_SELECT_ENABLE() (P3OUT &= UART_DEVICE_SELECT_PIN)
-#define MODEM_UART_SELECT_ENABLE() (P3OUT |= UART_DEVICE_SELECT_PIN)
-#define GPS_GET_SYSTEM_ON() (P1IN &= GPS_SYSTEM_ON_PIN)
+#if 1
+#define GPS_1_8V_ENABLE() (P1OUT |= _1V8_EN)
+#define GPS_1_8V_DISABLE() (P1OUT &= ~_1V8_EN)
+#define GPS_ON_OFF_HIGH() (P4OUT |= GPS_ON_OFF)
+#define GPS_ON_OFF_LOW() (P4OUT &= ~GPS_ON_OFF)
+#define GPS_GET_SYSTEM_ON() (!(P1IN &= GPS_ON_IND))
 #else
 static int doNothing(void) { return 0; }
 #define GPS_1_8V_ENABLE() doNothing()

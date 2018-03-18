@@ -118,7 +118,7 @@ rx byte template: <start-byte>,cmd,crc[2],<end-byte>
  * \brief define how long to wait before declaring an error for 
  *        a modem tx/rx session.
  */
-#define MODEM_TX_RX_TIMEOUT_IN_SEC ((uint32_t)30*(TIME_SCALER))
+#define MODEM_TX_RX_TIMEOUT_IN_SEC ((uint32_t)5*(TIME_SCALER))
 
 /**
  * \typedef txIsrState_t
@@ -183,8 +183,8 @@ typedef struct modemCmdData_s {
  *        RAM.
  */
 #pragma SET_DATA_SECTION(".commbufs")
-	uint8_t isrRxBuf[ISR_RX_BUF_SIZE];  /**< buffer used to tx and rx data to/from */
-	uint8_t isrTxBuf[ISR_TX_BUF_SIZE];  /**< buffer used to tx and rx data to/from */
+uint8_t isrRxBuf[ISR_RX_BUF_SIZE];  /**< buffer used to tx and rx data to/from */
+uint8_t isrTxBuf[ISR_TX_BUF_SIZE];  /**< buffer used to tx and rx data to/from */
 #pragma SET_DATA_SECTION()
 
 /**
@@ -214,6 +214,7 @@ static void initForModemStatusCmd(modemCmdWriteData_t *writeCmdP);
 static void initForMsgStatusCmd(modemCmdWriteData_t *writeCmdP);
 static void initForIncommingPartialCmd(modemCmdWriteData_t *writeCmdP);
 static void initForDeleteIncomingCmd(modemCmdWriteData_t *writeCmdP);
+static void initForSendTestCmd(modemCmdWriteData_t *writeCmdP);
 static inline void enable_UART_tx(void);
 static inline void enable_UART_rx(void);
 static inline void disable_UART_tx(void);
@@ -290,7 +291,7 @@ static const modemCmdFuncP_t modemCmdTable[] = {
     NULL,                       // OUTPOUR_M_COMMAND_MODEM_INFO = 0x1,
     initForModemStatusCmd,      // OUTPOUR_M_COMMAND_MODEM_STATUS = 0x2,
     initForMsgStatusCmd,        // OUTPOUR_M_COMMAND_MESSAGE_STATUS = 0x3,
-    NULL,                       // OUTPOUR_M_COMMAND_SEND_TEST = 0x4,
+    initForSendTestCmd,         // OUTPOUR_M_COMMAND_SEND_TEST = 0x4,
     initForSendDataCmd,         // OUTPOUR_M_COMMAND_SEND_DATA = 0x5,
     initForIncommingPartialCmd, // OUTPOUR_M_COMMAND_GET_INCOMING_PARTIAL = 0x6,
     initForDeleteIncomingCmd,   // OUTPOUR_M_COMMAND_DELETE_INCOMING = 0x7,
@@ -327,14 +328,14 @@ bool modemCmd_write(modemCmdWriteData_t *writeCmdP) {
         return false;
     }
 
-    // Using the cmd number that is being sent, 
+    // Using the cmd number that is being sent,
     // look up the message init function.
     if (writeCmdP->cmd <= OUTPOUR_M_COMMAND_POWER_OFF) {
         modemCmdFuncP = modemCmdTable[writeCmdP->cmd];
         if (!modemCmdFuncP) {
             return false;
         }
-        // Call the message init function to prepare 
+        // Call the message init function to prepare
         // the command to send to the modem.
         modemCmdFuncP(writeCmdP);
     } else {
@@ -526,11 +527,11 @@ static void initForPingCmd(modemCmdWriteData_t *writeCmdP) {
 */
 static void initForPowerOffCmd(modemCmdWriteData_t *writeCmdP) {
     mcData.modemCmdId = M_COMMAND_POWER_OFF;
-    TX_HEADER_BUF[0] = M_COMMAND_POWER_OFF;   // command Byte
-    mcData.crc = ((uint16_t)0x8801);          // precalculated crc
+    TX_HEADER_BUF[0] = M_COMMAND_POWER_OFF;  // command Byte
+    mcData.crc = ((uint16_t)0x8801);         // precalculated crc
     mcData.txHeaderLength = 1;
     mcData.txMsgContainsAPayload = false;
-    mcData.expectedResponseLength = 5;        // start,cmd,crc[2],end
+    mcData.expectedResponseLength = 5;       // start,cmd,crc[2],end
 }
 
 /**
@@ -548,11 +549,11 @@ static void initForSendDataCmd(modemCmdWriteData_t *writeCmdP) {
 
     // TODO NEED TO CHECK FOR MAX PAYLOAD SIZE
 
-    TX_HEADER_BUF[0] = M_COMMAND_SEND_DATA;        // command byte
-    TX_HEADER_BUF[1] = 0;                          // Payload Size: bits 24-31
-    TX_HEADER_BUF[2] = 0;                          // Payload Size: bits 16-23
-    TX_HEADER_BUF[3] = (size >> 8) & 0xFF;         // Payload Size: bits 8-15
-    TX_HEADER_BUF[4] = size & 0xFF;                // Payload Size: bits 0-7
+    TX_HEADER_BUF[0] = M_COMMAND_SEND_DATA;  // command byte
+    TX_HEADER_BUF[1] = 0;                    // Payload Size: bits 24-31
+    TX_HEADER_BUF[2] = 0;                    // Payload Size: bits 16-23
+    TX_HEADER_BUF[3] = (size >> 8) & 0xFF;   // Payload Size: bits 8-15
+    TX_HEADER_BUF[4] = size & 0xFF;          // Payload Size: bits 0-7
     mcData.txHeaderLength = 5;
     if (size > 0) {
         mcData.txMsgContainsAPayload = true;
@@ -563,7 +564,37 @@ static void initForSendDataCmd(modemCmdWriteData_t *writeCmdP) {
                                 mcData.txHeaderLength,
                                 writeCmdP->payloadP,
                                 size);
-    mcData.expectedResponseLength = 5;                 // start,cmd,crc[2],end
+    mcData.expectedResponseLength = 5;       // start,cmd,crc[2],end
+}
+
+/**
+* \brief Fill header with a test modem message.
+* \brief Helper function to initialize the buffer with a modem
+*        command and enable uart tx interrupt. 
+* 
+* @param payloadP Data Pointer to data buffer to send to modem
+* @param payloadSize Size of data in bytes to send
+* @param payloadMsgId The Cascade message ID
+*/
+static void initForSendTestCmd(modemCmdWriteData_t *writeCmdP) {
+    mcData.modemCmdId = M_COMMAND_SEND_TEST;
+    uint16_t size = writeCmdP->payloadLength;
+    TX_HEADER_BUF[0] = M_COMMAND_SEND_TEST;  // command byte
+    TX_HEADER_BUF[1] = 0;                    // Payload Size: bits 24-31
+    TX_HEADER_BUF[2] = 0;                    // Payload Size: bits 16-23
+    TX_HEADER_BUF[3] = (size >> 8) & 0xFF;   // Payload Size: bits 8-15
+    TX_HEADER_BUF[4] = size & 0xFF;          // Payload Size: bits 0-7
+    mcData.txHeaderLength = 5;
+    if (size > 0) {
+        mcData.txMsgContainsAPayload = true;
+        mcData.txMsgPayloadLength = size;
+        mcData.txPayloadP = writeCmdP->payloadP;
+    }
+    mcData.crc = gen_crc16_2buf((uint8_t *)&(TX_HEADER_BUF[0]),
+                                mcData.txHeaderLength,
+                                writeCmdP->payloadP,
+                                size);
+    mcData.expectedResponseLength = 5;       // start,cmd,crc[2],end
 }
 
 /**
@@ -601,7 +632,7 @@ static void initForSendDebugDataCmd(modemCmdWriteData_t *writeCmdP) {
 static void initForModemStatusCmd(modemCmdWriteData_t *writeCmdP) {
     mcData.modemCmdId = M_COMMAND_MODEM_STATUS;
     TX_HEADER_BUF[0] = M_COMMAND_MODEM_STATUS;     // command byte
-    mcData.crc = ((uint16_t)0xc181);                 // precalculated crc
+    mcData.crc = ((uint16_t)0xc181);               // precalculated crc
     mcData.txHeaderLength = 1;
     mcData.txMsgContainsAPayload = false;
     mcData.expectedResponseLength = 15; // start,cmd,status[10],crc[2],end
@@ -615,7 +646,7 @@ static void initForModemStatusCmd(modemCmdWriteData_t *writeCmdP) {
 static void initForMsgStatusCmd(modemCmdWriteData_t *writeCmdP) {
     mcData.modemCmdId = M_COMMAND_MESSAGE_STATUS;
     TX_HEADER_BUF[0] = M_COMMAND_MESSAGE_STATUS;   // command Byte
-    mcData.crc = ((uint16_t)0x0140);                 // pre-calculated crc
+    mcData.crc = ((uint16_t)0x0140);               // pre-calculated crc
     mcData.txHeaderLength = 1;
     mcData.txMsgContainsAPayload = false;
     mcData.expectedResponseLength = 23; // start,cmd,status[18],crc[2],end
@@ -647,7 +678,7 @@ static void initForIncommingPartialCmd(modemCmdWriteData_t *writeCmdP) {
     mcData.txHeaderLength = 9;
     mcData.txMsgContainsAPayload = false;
     mcData.crc = gen_crc16(&(TX_HEADER_BUF[0]), mcData.txHeaderLength);
-    mcData.expectedResponseLength = 13 + sizeInBytes;          // start,cmd,len[4],remaining[4],payload[sizeInBytes],crc[2],end
+    mcData.expectedResponseLength = 13 + sizeInBytes;  // start,cmd,len[4],remaining[4],payload[sizeInBytes],crc[2],end
 }
 
 /**
@@ -658,10 +689,10 @@ static void initForIncommingPartialCmd(modemCmdWriteData_t *writeCmdP) {
 static void initForDeleteIncomingCmd(modemCmdWriteData_t *writeCmdP) {
     mcData.modemCmdId = M_COMMAND_DELETE_INCOMING;
     TX_HEADER_BUF[0] = M_COMMAND_DELETE_INCOMING; // command byte
-    mcData.crc = 0xf141;                             // precalculated crc
+    mcData.crc = 0xf141;                          // precalculated crc
     mcData.txHeaderLength = 1;
     mcData.txMsgContainsAPayload = false;
-    mcData.expectedResponseLength = 5;                       // start,cmd,crc[2],end
+    mcData.expectedResponseLength = 5;            // start,cmd,crc[2],end
 }
 
 /*=============================================================================*/
