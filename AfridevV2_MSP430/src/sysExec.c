@@ -1,7 +1,7 @@
 /** 
  * @file sysExec.c
  * \n Source File
- * \n Outpour MSP430 Firmware
+ * \n Afridev-V2 MSP430 Firmware
  * 
  * \brief main system exec that runs the top level loop.
  */
@@ -143,15 +143,13 @@ void sysExec_exec(void) {
     gpsMsg_init();
     gpsPower_init();
     gps_init();
+    msgSched_init();
 
     // Start the timer interrupt
     timerA0_init();
 
     // Enable the global interrupt
     enableGlobalInterrupt();
-
-    // For testing GPS only!!!! 
-    // gps_start();
 
     // Start the infinite exec main loop
     while (1) {
@@ -162,13 +160,14 @@ void sysExec_exec(void) {
         __bis_SR_register(LPM3_bits);
 
         // Take a water measurement
-        // Don't take a measurement if the modem is in use or the water
+        // Don't take a measurement if the modem or GPS is in use or the water
         // measurement delay count is above the batch count. The waterMeasDelay
         // count is always zero in HF water measurement mode. In LF water measurement
         // mode, the counter is used to control how often the water measurements are
         // performed. In LF water measurement mode, we want to take a batch of
         // measurements periodically.
-        if ((sysExecData.waterMeasDelayCount < WATER_LF_MEAS_BATCH_COUNT) && !modemMgr_isAllocated()) {
+        if ((sysExecData.waterMeasDelayCount < WATER_LF_MEAS_BATCH_COUNT) && 
+            !modemMgr_isAllocated() && !gps_isActive()) {
             waterSense_takeReading();
         }
 
@@ -185,7 +184,7 @@ void sysExec_exec(void) {
             exec_main_loop_counter = 0;
 
             // Don't perform water data analysis if modem is in use.
-            if (!modemMgr_isAllocated()) {
+            if (!modemMgr_isAllocated() && !gps_isActive()) {
                 currentFlowRateInMLPerSec = analyzeWaterMeasurementData();
             }
 
@@ -206,6 +205,8 @@ void sysExec_exec(void) {
             gpsMsg_exec();       /* Handle GPS message processing */
             gpsPower_exec();     /* Handle power on and off the GPS device */
             gps_exec();          /* Manage GPS processing */
+            msgSched_exec();     /* Transmit modem messages if scheduled */
+
 #endif
 
             // A system reboot sequence is started when a firmware upgrade message
@@ -306,8 +307,6 @@ static uint16_t analyzeWaterMeasurementData(void) {
         if (sysExecData.noWaterMeasCount < ((NO_WATER_HF_TO_LF_TIME_IN_SECONDS >> SECONDS_PER_TREND_SHIFT)-1)) {
             // The noWaterMeasCount is incremented once every two seconds.
             sysExecData.noWaterMeasCount++;
-            // FOR DEBUG ONLY!!!! - DON'T INCREMENT COUNTER
-            sysExecData.noWaterMeasCount=0;
         } else {
             // No water has been detected for at least NO_WATER_HF_TO_LF_TIME_IN_SECONDS.
             // Stay in the LF water measurement mode in order to save power.
@@ -394,7 +393,6 @@ static void sendStartUpMsg1(void) {
     uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_FINAL_ASSEMBLY);
     // Initiate sending the final assembly message
     dataMsgMgr_sendDataMsg(MSG_TYPE_FINAL_ASSEMBLY, payloadP, payloadSize);
-    // dataMsgMgr_sendTestMsg(MSG_TYPE_FINAL_ASSEMBLY, payloadP, payloadSize);
 }
 
 /**
@@ -409,7 +407,6 @@ static void sendStartUpMsg2(void) {
     uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_CHECKIN);
     // Initiate sending the monthly check-in message
     dataMsgMgr_sendDataMsg(MSG_TYPE_CHECKIN, payloadP, payloadSize);
-    // dataMsgMgr_sendTestMsg(MSG_TYPE_FINAL_ASSEMBLY, payloadP, payloadSize);
 }
 
 /**

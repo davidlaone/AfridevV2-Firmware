@@ -9,7 +9,7 @@
 
 // Example valid RMC message
 // $GPRMC,020730.000,A,3716.1771,N,12156.0343,W,0.00,73.54,260218,,,A*58
-
+// $GPRMC,051506.000,A,3716.1770,N,12156.0483,W,0.13,213.58,180318,,,A*7B
 
 #include "outpour.h"
 
@@ -64,6 +64,12 @@ gpsMsgData_t gpsMsgData;
 * sentence.
 */
 static const uint8_t gnrmc_match_template[] = { '$', 'G', 'P', 'R', 'M', 'C' };
+
+/**
+* \var rmcTestString
+* Used for testing only. Mimic a valid RMC sentance.
+*/
+static const char rmcTestString[] =  "$GPRMC,051506.000,A,3716.1770,N,12156.0483,W,0.13,213.58,180318,,,A*7B";
 
 /*************************
  * Module Prototypes
@@ -357,6 +363,16 @@ void gpsMsg_isr(void) {
 *         in the RMC message.
 */
 static bool gpsMsg_checkForRmcDataValid(void) {
+#if 0
+    //*******************************************************
+    // For Test Only!!!! - Simulate RMC String
+    static uint8_t testCount = 0;
+    if (++testCount == 5) {
+        testCount = 0;
+        memcpy (rxBuf, rmcTestString, sizeof(rmcTestString));
+    }
+    //*******************************************************
+#endif
     return (rxBuf[18] == 'A') ? true : false;
 }
 
@@ -401,7 +417,7 @@ static bool gpsMsg_verifyChecksum(void) {
     // Verify that we received a minimal length and the asterisk before the checksum.
     // The '*' (0x2A) will be at five characters from the end.
     // An example end of sentence: 0x2A,0x37,0x33,0xD,0xA
-    if ((gpsMsgData.isrRxIndex < 40) || (rxBuf[gpsMsgData.isrRxIndex - 5] != '*')) {
+    if ((gpsMsgData.isrRxIndex < 20) || (rxBuf[gpsMsgData.isrRxIndex - 5] != '*')) {
         // printf("\n\n**** INCOMPLETE MESSAGE ****\n\n");
         return false;
     }

@@ -104,8 +104,8 @@ void msgSched_exec(void) {
 *        function is used by the msgData.c module to retrieve a
 *        scheduled message.
 * 
-* @param cmdWriteP Modem command write object that is filled in 
-*                  by this function with info on the payload to
+* @param cmdWriteP Modem command object that is filled in by 
+*                  this function with info on the payload to
 *                  send. If the length field is set to zero on
 *                  return, it indicates there is no message to
 *                  send.
@@ -139,6 +139,7 @@ void msgSched_getNextMessageToTransmit(modemCmdWriteData_t *cmdWriteP) {
         msgSchedData.sendGpsLocation = false;
     }
 
+    // Initialize the command object 
     cmdWriteP->cmd             = OUTPOUR_M_COMMAND_SEND_DATA;
     cmdWriteP->payloadMsgId    = payloadMsgId;  /* the payload type */
     cmdWriteP->payloadP        = payloadP;   /* the payload pointer */

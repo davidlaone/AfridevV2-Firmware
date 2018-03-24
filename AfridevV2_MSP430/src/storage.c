@@ -85,7 +85,7 @@
  * \brief If set to non-zero value, then the red flag processing 
  *        function will be called.
  */
-#define DO_RED_FLAG_PROCESSING 1
+#define DO_RED_FLAG_PROCESSING 0
 
 /**
  * \def DO_RED_FLAG_TRANSMISSION
