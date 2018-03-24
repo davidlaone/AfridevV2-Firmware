@@ -147,15 +147,9 @@ typedef struct mwBatchData_s {
  *        specified in the linker command file to live right
  *        below the stack space.
  */
-#ifdef __IAR_SYSTEMS_ICC__
-	#pragma dataseg=COMM_BUFS
-	    __no_init uint8_t otaBuf[OTA_RESPONSE_LENGTH];  /**< A buffer to hold one OTA message */
-	#pragma dataseg=default
-#elif defined (__TI_COMPILER_VERSION__)
 	#pragma SET_DATA_SECTION(".commbufs")
 	    uint8_t otaBuf[OTA_RESPONSE_LENGTH];  /**< A buffer to hold one OTA message */
 	#pragma SET_DATA_SECTION()
-#endif
 
 /**
  * \var mwBatchData
@@ -269,7 +263,6 @@ void modemMgr_sendModemCmdBatch(modemCmdWriteData_t *cmdWriteP) {
     mwBatchData.batchWriteActive = true;
     mwBatchData.commError = false;
     mwBatchData.modemNetworkStatus = MODEM_STATE_IDLE;
-    mwBatchData.numOfOtaMsgsAvailable = 0;
     modemMgr_batchWriteStateMachine();
 }
 

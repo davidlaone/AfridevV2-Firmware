@@ -48,7 +48,7 @@ void msp430Flash_erase_segment(uint8_t *flashSegmentAddrP) {
     ms_check_count = 0;
     while (FCTL3 & BUSY) {
         // rough loop delay of 1ms (assumes operating @ 1MHZ Clock);
-        __delay_cycles(1000);
+        _delay_cycles(1000);
         ms_check_count++;
         // Check for timeout: ~100MS (1ms*100)
         if (ms_check_count > 100) {
@@ -111,7 +111,7 @@ void msp430Flash_write_bytes(uint8_t *flashP, uint8_t *srcP, uint16_t num_bytes)
          */
         while (FCTL3 & BUSY) {
             // rough loop delay of 100us (assumes operating @ 1MHZ Clock);
-            __delay_cycles(100);
+            _delay_cycles(100);
             us100_check_count++;
             // Check for timeout: ~10MS (100us*100)
             if (us100_check_count > 100) {

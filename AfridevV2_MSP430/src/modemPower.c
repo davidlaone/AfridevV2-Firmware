@@ -1,5 +1,5 @@
 /** 
- * @file modemLink.c
+ * @file modemPower.c
  * \n Source File
  * \n Outpour MSP430 Firmware
  * 
@@ -62,7 +62,7 @@ static void modemPowerUpStateMachine(void);
 
 /**
 * \brief Executive that manages sequencing the modem power up 
-*        and power down.  Called on the 1 second tick rate to
+*        and power down.  Called on the 2 second tick rate to
 *        handle bringing the modem up and down.
 * \ingroup EXEC_ROUTINE
 */
@@ -99,7 +99,7 @@ void modemPower_powerDownModem(void) {
     mlData.modemUp = false;
     mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_IDLE;
     P1OUT &= ~GSM_DCDC;
-    P1OUT &= ~LS_VCC;
+    P2OUT &= ~LS_VCC;
 }
 
 bool modemPower_isModemOn(void) {
@@ -128,7 +128,7 @@ static void modemPowerUpStateMachine(void) {
         break;
     case MODEM_POWERUP_STATE_ALL_OFF:
         P1OUT &= ~GSM_DCDC;
-        P1OUT &= ~LS_VCC;
+        P2OUT &= ~LS_VCC;
         mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_DCDC;
         break;
     case MODEM_POWERUP_STATE_DCDC:
@@ -139,24 +139,25 @@ static void modemPowerUpStateMachine(void) {
         break;
     case MODEM_POWERUP_STATE_LSVCC:
         if (onTime >= (4 * TIME_SCALER)) {
-            P1OUT |= LS_VCC;
+            P2OUT |= LS_VCC;
             mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_GSM_HIGH;
         }
         break;
     case MODEM_POWERUP_STATE_GSM_HIGH:
         if (onTime >= (6 * TIME_SCALER)) {
-            P1OUT |= GSM_EN;
+            P2OUT |= GSM_EN;
             mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_GSM_LOW;
         }
         break;
     case MODEM_POWERUP_STATE_GSM_LOW:
         if (onTime >= (10 * TIME_SCALER)) {
-            P1OUT &= ~GSM_EN;
+            P2OUT &= ~GSM_EN;
             mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_INIT_WAIT;
         }
         break;
     case MODEM_POWERUP_STATE_INIT_WAIT:
         if (onTime >= (15 * TIME_SCALER)) {
+            MODEM_UART_SELECT_ENABLE();
             mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_READY;
             mlData.modemUp = true;
         }

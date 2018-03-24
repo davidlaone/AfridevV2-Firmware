@@ -1,7 +1,7 @@
 /** 
  * @file hal.c
  * \n Source File
- * \n Outpour MSP430 Firmware
+ * \n AfridevV2 MSP430 Firmware
  * 
  * \brief Hal support routines
  */
@@ -45,60 +45,100 @@
 ******************************************************************************/
 
 /**
-* \brief One time init of all clock related subsystems after 
-*        boot up.
-* \ingroup PUBLIC_API
-*/
-void hal_sysClockInit(void) {
-    DCOCTL = 0;               // Select lowest DCOx and MODx settings
-    BCSCTL1 = CALBC1_1MHZ;    // Set DCO
-    DCOCTL = CALDCO_1MHZ;
-
-    BCSCTL1 |= DIVA_0;        // ACLK/1 [ACLK/(0:1,1:2,2:4,3:8)]
-    BCSCTL2 = 0;              // SMCLK [SMCLK/(0:1,1:2,2:4,3:8)]
-    BCSCTL3 |= LFXT1S_0;      // LFXT1S0 32768-Hz crystal on LFXT1
-}
-
-/**
 * \brief One time init of all GPIO port pin related items after 
 *        boot up.
 * \ingroup PUBLIC_API
 */
 void hal_pinInit(void) {
 
+    /***********/
+    /* PORT P1 */
+    /**********/
+
+    // Pin 1.0, No Connect
+    // Pin 1.1, VBAT_GND, output, controls VBAT sensing, (Active LOW)
+    // Pin 1.2, GSM_DCDC, output, controls (U4) (Active HIGH)
+    // Pin 1.3, _1V8_EN, output,  controls (U5) (Active HIGH)
+    // Pin 1.4, GSM_INT, input, SIM900 interrupt out
+    // Pin 1.5, GSM_STATUS, input, SIM900 status out
+    // Pin 1.6, TM_GPS, input, GPS Time Pulse
+    // Pin 1.7, GPS_ON_IND, input, GPS System ON (inverted)
+
+    // Set P1 Direction - Outputs
     P1DIR  |= VBAT_GND + _1V8_EN + GSM_DCDC; // Output
-                                             // GSM_INT and GSM_STAT are GPIO inputs, set P1DIR to 0
-    P1DIR  &= ~(GSM_INT + GSM_STATUS);
+                                             // Set P1 Direction - Inputs
+    P1DIR  &= ~(GSM_INT + GSM_STATUS + TM_GPS + GPS_ON_IND);
+    // Initalize P1 Outputs
+    P1OUT &= ~(GSM_DCDC | _1V8_EN);
+    P1OUT |= VBAT_GND;
 
-    // VBAT_GND controls VBAT sensing, default off (Active LOW)
-    // GSM_DCDC controls (U4) default off (Active HIGH)
-    // _1V8_EN controls (U5) default off (Active HIGH)
-    P1OUT  |= VBAT_GND;
+    /***********/
+    /* PORT P2 */
+    /**********/
 
-    // VBAT_MON adc pin initializtion should go here
+    // Pin 2.0, VBAT_MON, input, ADC
+    // Pin 2.1, PAD1
+    // Pin 2.2, PAD2
+    // Pin 2.3, I2C_DRV, output, I2C Pull-up, Not Used
+    // Pin 2.4, GSM_EN,  output, for modem (Active HIGH)
+    // Pin 2.5, LS_VCC,  output, for modem (Active HIGH)
+    // Pin 2.6, Crystal XIN, input
+    // Pin 2.7, Crystal XOUT, output
 
-    P2SEL  |= BIT6 + BIT7; // configuring crystal XIN for P2.6
-
-    // BIT0 = ACLK out on pin 2.0
-    // I2C_DRV is output GPIO (default hi-z) Controls I2C
-    // GSM_PWR is output GPIO (default off) On when GPS on
-    // LS_VCC is output GPIO (default off) On when modem on
-    // BIT7 is for crystal XOUT on P2.7
+    // configure pins for crystal on P2.6,P2.7
+    P2SEL  |= BIT6 + BIT7;
+    // Set P2 Direction - Output
+    // Note: BIT7 is for crystal XOUT on P2.7
     P2DIR  |= I2C_DRV + GSM_EN + LS_VCC + BIT7;
+    // Set P2 Direction - Input
+    // Note: BIT6 is for crystal XIN on P2.6
+    P2DIR &= ~(BIT6);
+    // Initialize P2 Outputs
+    P2OUT &= ~(I2C_DRV + GSM_EN + LS_VCC);
 
+    /***********/
+    /* PORT P3 */
+    /**********/
+
+    // Pin 3.0, PAD5
+    // Pin 3.1, I2C_SDA, Not Used
+    // Pin 3.2, I2C_SCL, Not Used
+    // Pin 3.3, NTC_ENABLE, Output, Temperature Meas Enable
+    // Pin 3.4, UART TXD, Special
+    // Pin 3.5, UART RX, Special
+    // Pin 3.7, MSP_UART_SEL, Output, Cell=0,GPS=1
 
 #ifdef USE_UART_SIGNALS_FOR_GPIO
     // If using UART signals for timing GPIO outputs
-    P3DIR  |= RXD + TXD; // P1.1 = RXD, P1.2=TXD
+    P3DIR  |= RXD + TXD + NTC_ENABLE;
 #else
-    // UART Tx - to debug UART in debug mode, to modem in modem mode
-    P3SEL  |= TXD;
-    // UART Rx
-    P3SEL2 |= RXD;
+    // Setup I/O for UART
+    P3SEL  |= RXD + TXD;
 #endif
-    P3DIR  |= VBAT_GND + _1V8_EN;
+    // Set P3 Direction - Output
+    P3DIR  |= NTC_ENABLE + MSP_UART_SEL;
+    // Initialize P3 Outputs
+    P3OUT &= ~(NTC_ENABLE + MSP_UART_SEL);
 
+    /***********/
+    /* PORT P4 */
+    /**********/
+
+    // Pin 4.0, NO CONNECTION
+    // Pin 4.1, NO CONNECTION
+    // Pin 4.2, GPS_ON_OFF
+    // Pin 4.3, NTC_SENSE_INPUT
+    // Pin 4.4, NO CONNECTION
+    // Pin 4.5, PAD4
+    // Pin 4.6, PAD2
+    // Pin 4.7, PAD0
+
+    // Set P4 Direction - Outputs
     P4DIR  |= GPS_ON_OFF;
+    // Set P4 Direction - Inputs
+    P4DIR  &= ~(NTC_SENSE_INPUT);
+    // Initialize P4 Outputs
+    P4OUT &= ~(GPS_ON_OFF);
 }
 
 /**
@@ -111,8 +151,21 @@ void hal_uartInit(void) {
     UCA0BR0 = 0x03;               // 32 kHz 9600
     UCA0BR1 = 0x00;               // 32 kHz 9600
     UCA0MCTL = UCBRS0 + UCBRS1;   // Modulation UCBRSx = 3
-
     UCA0CTL1 &= ~UCSWRST;         // **Initialize USCI state machine**
-    UC0IE |= UCA0RXIE;            // Enable USCI_A0 RX interrupt
+}
+
+/**
+* \brief One time init of all clock related subsystems after 
+*        boot up.
+* \ingroup PUBLIC_API
+*/
+void hal_sysClockInit(void) {
+    DCOCTL = 0;               // Select lowest DCOx and MODx settings
+    BCSCTL1 = CALBC1_1MHZ;    // Set DCO
+    DCOCTL = CALDCO_1MHZ;
+
+    BCSCTL1 |= DIVA_0;        // ACLK/1 [ACLK/(0:1,1:2,2:4,3:8)]
+    BCSCTL2 = 0;              // SMCLK [SMCLK/(0:1,1:2,2:4,3:8)]
+    BCSCTL3 |= LFXT1S_0;      // LFXT1S0 32768-Hz crystal on LFXT1
 }
 

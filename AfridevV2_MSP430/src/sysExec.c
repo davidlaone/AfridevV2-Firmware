@@ -1,7 +1,7 @@
 /** 
  * @file sysExec.c
  * \n Source File
- * \n Outpour MSP430 Firmware
+ * \n Afridev-V2 MSP430 Firmware
  * 
  * \brief main system exec that runs the top level loop.
  */
@@ -23,7 +23,7 @@
  *        has completed transmitting, the same delay is used to
  *        determine when to transmit the second startup message.
  */
-#define START_UP_MSG_TX_DELAY_IN_SECONDS ((uint8_t)30)
+#define START_UP_MSG_TX_DELAY_IN_SECONDS ((uint8_t)10)
 
 /**
  * \def REBOOT_DELAY_IN_SECONDS
@@ -140,6 +140,10 @@ void sysExec_exec(void) {
     otaMsgMgr_init();
     waterSense_init();
     storageMgr_init();
+    gpsMsg_init();
+    gpsPower_init();
+    gps_init();
+    msgSched_init();
 
     // Start the timer interrupt
     timerA0_init();
@@ -156,13 +160,14 @@ void sysExec_exec(void) {
         __bis_SR_register(LPM3_bits);
 
         // Take a water measurement
-        // Don't take a measurement if the modem is in use or the water
+        // Don't take a measurement if the modem or GPS is in use or the water
         // measurement delay count is above the batch count. The waterMeasDelay
         // count is always zero in HF water measurement mode. In LF water measurement
         // mode, the counter is used to control how often the water measurements are
         // performed. In LF water measurement mode, we want to take a batch of
         // measurements periodically.
-        if ((sysExecData.waterMeasDelayCount < WATER_LF_MEAS_BATCH_COUNT) && !modemMgr_isAllocated()) {
+        if ((sysExecData.waterMeasDelayCount < WATER_LF_MEAS_BATCH_COUNT) && 
+            !modemMgr_isAllocated() && !gps_isActive()) {
             waterSense_takeReading();
         }
 
@@ -179,7 +184,7 @@ void sysExec_exec(void) {
             exec_main_loop_counter = 0;
 
             // Don't perform water data analysis if modem is in use.
-            if (!modemMgr_isAllocated()) {
+            if (!modemMgr_isAllocated() && !gps_isActive()) {
                 currentFlowRateInMLPerSec = analyzeWaterMeasurementData();
             }
 
@@ -197,6 +202,11 @@ void sysExec_exec(void) {
             modemMgr_exec();     /* perform Low-level message processing */
             modemCmd_exec();     /* perform Low-level modem interface processing (again) */
             modemPower_exec();   /* Handle powering on and off the modem */
+            gpsMsg_exec();       /* Handle GPS message processing */
+            gpsPower_exec();     /* Handle power on and off the GPS device */
+            gps_exec();          /* Manage GPS processing */
+            msgSched_exec();     /* Transmit modem messages if scheduled */
+
 #endif
 
             // A system reboot sequence is started when a firmware upgrade message
@@ -212,12 +222,14 @@ void sysExec_exec(void) {
                 }
             }
 
+#if 0
 #ifdef PRODUCTION_CODE
             // Two messages are transmitted shortly after the system starts:
             // The final assembly message and a monthly check-in message.
             if (!sysExecData.startUpMsg1WasSent || !sysExecData.startUpMsg2WasSent) {
                 startUpMessageCheck();
             }
+#endif
 #endif
 
 #ifdef SEND_DEBUG_INFO_TO_UART
@@ -295,8 +307,6 @@ static uint16_t analyzeWaterMeasurementData(void) {
         if (sysExecData.noWaterMeasCount < ((NO_WATER_HF_TO_LF_TIME_IN_SECONDS >> SECONDS_PER_TREND_SHIFT)-1)) {
             // The noWaterMeasCount is incremented once every two seconds.
             sysExecData.noWaterMeasCount++;
-            // FOR DEBUG ONLY!!!! - DON'T INCREMENT COUNTER
-            sysExecData.noWaterMeasCount=0;
         } else {
             // No water has been detected for at least NO_WATER_HF_TO_LF_TIME_IN_SECONDS.
             // Stay in the LF water measurement mode in order to save power.
@@ -361,9 +371,9 @@ static void startUpMessageCheck(void) {
             // erased by the bootloader after a new firmware upgrade has been
             // performed before jumping to the new Application code.
             // The Application Record is located in the flash INFO C section.
-            if (!checkForApplicationRecord()) {
+            if (!appRecord_checkForValidAppRecord()) {
                 // If the record is not found, write one.
-                initApplicationRecord();
+                appRecord_initAppRecord();
             }
             sendStartUpMsg2();
             sysExecData.startUpMsg2WasSent = true;

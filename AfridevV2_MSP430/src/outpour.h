@@ -213,20 +213,31 @@ typedef enum padId_e {
 } padId_t;
 
 // Give names to the various port pin numbers
-#define LS_VCC BIT5         // Pin 2.5
-#define RXD BIT5			// Pin 3.5
-#define TXD BIT4			// Pin 3.4
-#define GSM_STATUS BIT5		// Pin 1.5
-#define GSM_INT BIT4		// Pin 1.4
-#define GSM_EN BIT4			// Pin 2.4
-#define GSM_DCDC BIT2		// Pin 1.2 - GPIO
-#define VBAT_GND BIT1		// Pin 1.1 - GPIO
-#define VBAT_MON BIT0		// Pin 2.0
-#define _1V8_EN BIT3		// Pin 1.3 - GPIO
-#define I2C_DRV BIT3		// Pin 2.3
-#define I2C_SDA BIT1		// Pin 3.1
-#define I2C_SCL BIT2		// Pin 3.2
-#define GPS_ON_OFF BIT2		// Pin 4.2
+#define VBAT_GND BIT1		 // Pin 1.1, Output 
+#define GSM_DCDC BIT2		 // Pin 1.2, Output
+#define _1V8_EN BIT3		 // Pin 1.3, Output
+#define GSM_INT BIT4		 // Pin 1.4, Input
+#define GSM_STATUS BIT5		 // Pin 1.5, Input
+#define TM_GPS BIT6          // Pin 1.6, Input
+#define GPS_ON_IND BIT7      // Pin 1.7, Input
+
+#define VBAT_MON BIT0		 // Pin 2.0, ADC
+#define I2C_DRV BIT3		 // Pin 2.3, Output
+#define GSM_EN BIT4			 // Pin 2.4, Output
+#define LS_VCC BIT5          // Pin 2.5, Output
+
+#define I2C_SDA BIT1		 // Pin 3.1, Not Used
+#define I2C_SCL BIT2		 // Pin 3.2, Not Used
+#define NTC_ENABLE BIT3      // Pin 3.3, Output
+#define TXD BIT4			 // Pin 3.4, UART
+#define RXD BIT5			 // Pin 3.5, UART
+#define MSP_UART_SEL BIT7    // Pin 3.7, UART Select (Modem or GPS)
+
+#define GPS_ON_OFF BIT2		 // Pin 4.2, Output
+#define NTC_SENSE_INPUT BIT3 // Pin 4.3, ADC
+
+#define MODEM_UART_SELECT_ENABLE() (P3OUT &= ~MSP_UART_SEL)
+#define GPS_UART_SELECT_ENABLE() (P3OUT |= MSP_UART_SEL)
 
 /*******************************************************************************
 *  Centralized method for enabling and disabling MSP430 interrupts
@@ -327,7 +338,7 @@ bool checkForApplicationRecord(void);
  */
 typedef struct modemCmdWriteData_s {
     outpour_modem_command_t cmd; /**< the modem command */
-    MessageType_t payloadMsgId;  /**< the payload type (Cascade message type) */
+    MessageType_t payloadMsgId;  /**< the payload type (Afridev message type) */
     uint8_t *payloadP;           /**< the payload pointer (if any) */
     uint16_t payloadLength;      /**< size of the payload in bytes */
     uint16_t payloadOffset;      /**< for receiving partial data */
@@ -361,7 +372,7 @@ typedef struct modemCmdReadData_s {
  *        firmware upgrade.  All other OTA payload data length
  *        is currently less than 16 bytes.
  */
-#define OTA_PAYLOAD_MAX_RX_READ_LENGTH ((uint16_t)16)
+#define OTA_PAYLOAD_MAX_RX_READ_LENGTH ((uint16_t)512)
 
 /**
  * \def OTA_RESPONSE_LENGTH
@@ -410,6 +421,7 @@ void modemCmd_read(modemCmdReadData_t *readDataP);
 bool modemCmd_isResponseReady(void);
 bool modemCmd_isError(void);
 bool modemCmd_isBusy(void);
+void modemCmd_isr(void);
 
 /*******************************************************************************
 * modemPower.c
@@ -478,7 +490,8 @@ void dataMsgMgr_exec(void);
 void dataMsgMgr_init(void);
 bool dataMsgMgr_isSendMsgActive(void);
 bool dataMsgMgr_sendDataMsg(MessageType_t msgId, uint8_t *dataP, uint16_t lengthInBytes);
-bool dataMsgMgr_sendDailyLogs(void);
+bool dataMsgMgr_sendTestMsg(MessageType_t msgId, uint8_t *dataP, uint16_t lengthInBytes);
+bool dataMsgMgr_startSendingScheduled(void);
 
 /*******************************************************************************
 * msgOta.c
@@ -488,6 +501,28 @@ void otaMsgMgr_init(void);
 void otaMsgMgr_getAndProcessOtaMsgs(void);
 void otaMsgMgr_stopOtaProcessing(void);
 bool otaMsgMgr_isOtaProcessingDone(void);
+
+/*******************************************************************************
+* msgOtaUpgrade.c
+*******************************************************************************/
+
+/**
+ * \typedef fwUpdateResult_t
+ * \brief Specify the different status results that the firmware
+ *        update state machine can exit in.
+ */
+typedef enum fwUpdateResult_e {
+    RESULT_NO_FWUPGRADE_PERFORMED =  0,
+    RESULT_DONE_SUCCESS           =  1,
+    RESULT_DONE_ERROR             = -1,
+} fwUpdateResult_t;
+
+fwUpdateResult_t otaUpgrade_processOtaUpgradeMessage(void);
+fwUpdateResult_t otaUpgrade_getFwUpdateResult(void);
+uint16_t otaUpgrade_getFwMessageCrc(void);
+uint16_t otaUpgrade_getFwCalculatedCrc(void);
+uint16_t otaUpgrade_getFwLength(void);
+uint8_t otaUpgrade_getErrorCode(void);
 
 /*******************************************************************************
 * msgDebug.c
@@ -542,13 +577,6 @@ void dataMsgSm_sendAnotherDataMsg(dataMsgSm_t *dataMsgP);
 void dataMsgSm_stateMachine(dataMsgSm_t *dataMsgP);
 
 /*******************************************************************************
-* msgFinalAssembly.c
-*******************************************************************************/
-void fassMsgMgr_exec(void);
-void fassMsgMgr_init(void);
-void fassMsgMgr_sendFassMsg(void);
-
-/*******************************************************************************
 * time.c
 *******************************************************************************/
 /**
@@ -570,6 +598,13 @@ void getBinTime(timePacket_t *tpP);
 uint8_t bcd_to_char(uint8_t bcdValue);
 uint32_t getSecondsSinceBoot(void);
 
+// Watchdog Macros
+// 1 second time out, uses ACLK
+// #define WATCHDOG_TICKLE() (WDTCTL = WDT_ARST_1000)
+// For testing, don't enable watchdog
+#define WATCHDOG_TICKLE() (WDTCTL = WDTPW | WDTHOLD)
+#define WATCHDOG_STOP() (WDTCTL = WDTPW | WDTHOLD)
+
 /*******************************************************************************
 * storage.c
 *******************************************************************************/
@@ -577,13 +612,19 @@ void storageMgr_init(void);
 void storageMgr_exec(uint16_t currentFlowRateInSecML);
 void storageMgr_overrideUnitActivation(bool flag);
 uint16_t storageMgr_getDaysActivated(void);
+void storageMgr_resetRedFlag(void);
+bool storageMgr_getRedFlagConditionStatus (void);
+void storageMgr_resetRedFlagAndMap(void);
 void storageMgr_resetWeeklyLogs(void);
 void storageMgr_setStorageAlignmentTime(uint8_t alignSecond, uint8_t alignMinute, uint8_t alignHour24);
 void storageMgr_setTransmissionRate(uint8_t transmissionRateInDays);
 uint16_t storageMgr_getNextDailyLogToTransmit(uint8_t **dataPP);
 void storageMgr_sendDebugDataToUart(void);
 uint8_t storageMgr_getStorageClockInfo(uint8_t *bufP);
+uint8_t storageMgr_getStorageClockHour(void);
 uint8_t storageMgr_prepareMsgHeader(uint8_t *dataPtr, uint8_t payloadMsgId);
+uint16_t storageMgr_getMonthlyCheckinMessage(uint8_t **payloadPP);
+uint16_t storageMgr_getActivatedMessage(uint8_t **payloadPP); 
 
 /*******************************************************************************
 * waterSense.c
@@ -633,19 +674,65 @@ void msp430Flash_write_int32(uint8_t *flashP, uint32_t val32);
 #define FLASH_UPGRADE_KEY3 ((uint8_t)0x59)
 #define FLASH_UPGRADE_KEY4 ((uint8_t)0x26)
 
-#define APR_LOCATION ((uint8_t *)0x1040)  // INFO C
-#define APR_MAGIC1 ((uint16_t)0x1234)
-#define APR_MAGIC2 ((uint16_t)0x5678)
+/*******************************************************************************
+* appRecord.c
+*******************************************************************************/
+bool appRecord_initAppRecord(void);
+bool appRecord_checkForValidAppRecord(void);
+bool appRecord_checkForNewFirmware(void);
+bool appRecord_updateFwInfo(bool newFwIsReady, uint16_t newFwCrc);
+bool appRecord_getNewFirmwareInfo(bool *newFwReadyP, uint16_t *newFwCrcP);
+void appRecord_erase();
+#if 0
+void appRecord_test(void);
+#endif
 
-/**
- * \typedef appRecord_t
- * \brief This structure is used to put an application record in 
- *        one of the INFO sections.  The structure is used to
- *        tell the bootloader that application has started.
- */
-typedef struct appRecord_e {
-    uint16_t magic1;
-    uint16_t magic2;
-    uint16_t crc16;
-} appRecord_t;
+/*******************************************************************************
+* MsgSchedule.c 
+*******************************************************************************/
+void msgSched_init(void);
+void msgSched_exec(void);
+void msgSched_scheduleDailyWaterLogMessage(void);
+void msgSched_scheduleActivatedMessage(void);
+void msgSched_scheduleMonthlyCheckInMessage(void);
+void msgSched_scheduleGpsLocationMessage(void);
+void msgSched_scheduleGpsMeasurement(void);
+void msgSched_getNextMessageToTransmit(modemCmdWriteData_t *cmdWriteP); 
+
+/*******************************************************************************
+* gps.c 
+*******************************************************************************/
+void gps_init(void);
+void gps_exec(void);
+void gps_start (void);
+void gps_stop (void);
+bool gps_isActive(void);
+void gps_sendGpsMessage(void);
+uint16_t gps_getGpsMessage(uint8_t **payloadP);
+
+/*******************************************************************************
+* gpsPower.c 
+*******************************************************************************/
+void gpsPower_exec(void);
+void gpsPower_init(void);
+void gpsPower_restart(void);
+void gpsPower_powerDownGPS(void);
+bool gpsPower_isGpsOn(void);
+bool gpsPower_isGpsOnError(void);
+uint16_t gpsPower_getGpsOnTimeInSecs(void);
+
+/*******************************************************************************
+* gpsMsg.c 
+*******************************************************************************/
+void gpsMsg_init(void);
+void gpsMsg_exec(void);
+bool gpsMsg_start(void);
+void gpsMsg_stop(void);
+bool gpsMsg_isActive(void);
+bool gpsMsg_isError(void);
+bool gpsMsg_gotRmcMessage(void);
+uint8_t gpsMsg_getRmcMesssageLength(void);
+bool gpsMsg_gotDataValidRmcMessage(void);
+uint8_t gpsMsg_getRmcMessage(uint8_t *bufP);
+void gpsMsg_isr(void);
 

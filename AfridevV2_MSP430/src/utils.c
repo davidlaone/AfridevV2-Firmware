@@ -25,9 +25,9 @@
 * @return unsigned int The CRC calculated value
 */
 unsigned int gen_crc16(const unsigned char *data, unsigned int size) {
-    unsigned int out = 0;
-    int bits_read = 0;
-    int bit_flag;
+    volatile unsigned int out = 0;
+    volatile int bits_read = 0;
+    volatile int bit_flag;
 
     while (size > 0) {
         bit_flag = out >> 15;
@@ -40,6 +40,7 @@ unsigned int gen_crc16(const unsigned char *data, unsigned int size) {
             bits_read = 0;
             data++;
             size--;
+            WATCHDOG_TICKLE();
         }
         /* Cycle check: */
         if (bit_flag) out ^= CRC16;
@@ -77,9 +78,9 @@ unsigned int gen_crc16(const unsigned char *data, unsigned int size) {
 * @return unsigned int The calculated CRC value
 */
 unsigned int gen_crc16_2buf(const unsigned char *data1, unsigned int size1, const unsigned char *data2, unsigned int size2) {
-    unsigned int out = 0;
-    int bits_read = 0;
-    int bit_flag;
+    volatile unsigned int out = 0;
+    volatile int bits_read = 0;
+    volatile int bit_flag;
 
     while (size1 > 0) {
         bit_flag = out >> 15;
@@ -92,6 +93,7 @@ unsigned int gen_crc16_2buf(const unsigned char *data1, unsigned int size1, cons
             bits_read = 0;
             data1++;
             size1--;
+            WATCHDOG_TICKLE();
         }
         /* Cycle check: */
         if (bit_flag) out ^= CRC16;
@@ -110,6 +112,7 @@ unsigned int gen_crc16_2buf(const unsigned char *data1, unsigned int size1, cons
             bits_read = 0;
             data2++;
             size2--;
+            WATCHDOG_TICKLE();
         }
         /* Cycle check: */
         if (bit_flag) out ^= CRC16;
@@ -133,41 +136,3 @@ unsigned int gen_crc16_2buf(const unsigned char *data1, unsigned int size1, cons
     return crc;
 }
 
-/**
-* \brief Write a fresh Application Record in the INFO C section.
-*        The record is written by the Application and used by
-*        the bootloader to identify that the Application started
-*        successfully.
-*/
-void initApplicationRecord(void) {
-    msp430Flash_erase_segment(APR_LOCATION);
-    appRecord_t *aprP = (appRecord_t *)APR_LOCATION;
-    uint16_t temp;
-    temp = APR_MAGIC1;
-    msp430Flash_write_bytes((uint8_t *)&aprP->magic1, (uint8_t *)&temp, sizeof(uint16_t));
-    temp = APR_MAGIC2;
-    msp430Flash_write_bytes((uint8_t *)&aprP->magic2, (uint8_t *)&temp, sizeof(uint16_t));
-    temp = gen_crc16(APR_LOCATION, (sizeof(appRecord_t) - sizeof(uint16_t)));
-    msp430Flash_write_bytes((uint8_t *)&aprP->crc16, (uint8_t *)&temp, sizeof(uint16_t));
-}
-
-/**
-* \brief Determine if a valid Application Record is located in 
-*        the INFO C section.  The record is written by the
-*        Application and used by the bootloader to identify that
-*        the Applciation started successfully.
-* 
-* @return bool Returns true if the record is valid.  False 
-*         otherwise.
-*/
-bool checkForApplicationRecord(void) {
-    bool aprFlag = false;
-    appRecord_t *aprP = (appRecord_t *)APR_LOCATION;
-    if ((aprP->magic1 == APR_MAGIC1) && (aprP->magic2 == APR_MAGIC2)) {
-        unsigned int crc16 = gen_crc16(APR_LOCATION, (sizeof(appRecord_t) - sizeof(uint16_t)));
-        if (crc16 == aprP->crc16) {
-            aprFlag = true;
-        }
-    }
-    return aprFlag;
-}
