@@ -188,7 +188,6 @@ void sysExec_exec(void) {
                 currentFlowRateInMLPerSec = analyzeWaterMeasurementData();
             }
 
-#ifdef PRODUCTION_CODE
             // Record the water stats and initiate periodic communication
             storageMgr_exec(currentFlowRateInMLPerSec);
 
@@ -207,8 +206,6 @@ void sysExec_exec(void) {
             gps_exec();          /* Manage GPS processing */
             msgSched_exec();     /* Transmit modem messages if scheduled */
 
-#endif
-
             // A system reboot sequence is started when a firmware upgrade message
             // or system restart message is received. If a reboot sequence has started,
             // then decrement counter and check for a timeout.  When timeout occurs,
@@ -222,15 +219,11 @@ void sysExec_exec(void) {
                 }
             }
 
-#if 0
-#ifdef PRODUCTION_CODE
             // Two messages are transmitted shortly after the system starts:
             // The final assembly message and a monthly check-in message.
             if (!sysExecData.startUpMsg1WasSent || !sysExecData.startUpMsg2WasSent) {
                 startUpMessageCheck();
             }
-#endif
-#endif
 
 #ifdef SEND_DEBUG_INFO_TO_UART
             // Only send debug data if the modem is not in use.
