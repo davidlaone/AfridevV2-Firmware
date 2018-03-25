@@ -9,6 +9,9 @@
 #include "outpour.h"
 #include "CTS_Layer.h"
 #include "waterDetect.h"
+#ifdef WATER_DEBUG
+#include "debugUart.h"
+#endif
 
 /***************************
  * Module Data Definitions
@@ -203,12 +206,39 @@ uint8_t waterSense_analyzeData(void)
 
     padStats.unknowns += unknowns;
 
+#ifndef WATER_DEBUG   // Exclude this section for water debug
     if (numOfSubmergedPads)
     {
         padStats.lastMeasFlowRateInMl = waterDetect_get_flow_rate(numOfSubmergedPads, &percentile);
     } else {
         padStats.lastMeasFlowRateInMl = 0;
     }
+#endif
+
+#ifdef  WATER_DEBUG  // Include this section for water debug
+    if (1) {
+        static uint32_t total_flow = 0;
+
+        padStats.lastMeasFlowRateInMl = waterDetect_get_flow_rate(numOfSubmergedPads, &percentile);
+
+        total_flow += padStats.lastMeasFlowRateInMl;
+
+        // a pour session ended, log it to debug
+        if (!padStats.lastMeasFlowRateInMl && total_flow)
+        {
+            // display total and reset
+            uint32_t sys_time = getSecondsSinceBoot();
+            debug_pour_total(sys_time, total_flow);
+            total_flow = 0;
+        }
+
+    #ifdef DBG_DETAILS
+        // debug messages are selected/deselected in debugUart.h
+        uint32_t sys_time = getSecondsSinceBoot();
+        debug_padSummary(sys_time, numOfSubmergedPads, unknowns, padStats.pump_active);
+    #endif
+    }
+#endif
 
     return (numOfSubmergedPads);
 }
