@@ -16,25 +16,6 @@
  **************************/
 
 /**
- * \def START_UP_MSG_TX_DELAY_IN_SECONDS
- * \brief Two messages are transmitted after the system starts. 
- *        This definition specifies the delay in seconds after
- *        startup until the first startup message is sent to the
- *        modem for transmit. After the first startup message
- *        has completed transmitting, the same delay is used to
- *        determine when to transmit the second startup message.
- */
-#define START_UP_MSG_TX_DELAY_IN_SECONDS ((uint8_t)10)
-
-/**
- * \def REBOOT_DELAY_IN_SECONDS
- * \brief This define is used in conjunction with the OTA reset
- *        device message. It specifies how long to wait after
- *        the message was received to perform the MSP430 reset.
- */
-#define REBOOT_DELAY_IN_SECONDS ((uint8_t)20*TIME_SCALER)
-
-/**
  * \def NO_WATER_HF_TO_LF_TIME_IN_SECONDS
  * \brief  Specify how long to wait before switching to
  *         the low-frequency (LF) water measurement interval in
@@ -70,11 +51,6 @@
  * \brief Container to hold data for the sysExec module.
  */
 typedef struct sysExecData_s {
-    bool startUpMsg1WasSent : 1;      /**< Flag specifying if first startup msg was sent */
-    bool startUpMsg2WasSent : 1;      /**< Flag specifying if second startup msg was sent */
-    int8_t secondsTillStartUpMsgTx;   /**< Seconds until startup messages are transmitted */
-    int8_t secondsTillReboot;         /**< How long to wait to perform a MSP430 reset */
-    uint8_t rebootCountdownIsActive;  /**< Specify if a reboot countdown sequence is in-progress */
     uint8_t noWaterMeasCount;         /**< Maintain a count of sequential no water detected measurements */
     uint8_t waterMeasDelayCount;      /**< Delay next water measurement count-down */
 } sysExecData_t;
@@ -89,16 +65,6 @@ sysExecData_t sysExecData;
  * Module Prototypes
  ************************/
 static uint16_t analyzeWaterMeasurementData(void);
-#ifndef WATER_DEBUG
-static void startUpMessageCheck(void);
-static void sendStartUpMsg1(void);
-static void sendStartUpMsg2(void);
-static void sysExec_doReboot(void);
-#endif
-
-#ifdef SEND_DEBUG_INFO_TO_UART
-static void sysExec_sendDebugDataToUart(void);
-#endif
 
 /***************************
  * Module Public Functions
@@ -125,29 +91,13 @@ void sysExec_exec(void) {
 
     memset(&sysExecData, 0, sizeof(sysExecData_t));
 
-    // Set how long to wait until first startup message should be transmitted
-    sysExecData.secondsTillStartUpMsgTx = START_UP_MSG_TX_DELAY_IN_SECONDS;
-
     // Initialize the date for Jan 1, 2017
     // h, m, s, am/pm (must be in BCD)
     setTime(0x00, 0x00, 0x00, 0x00);
     // y, m, d
     setDate(2017, 1, 1);
 
-#ifndef WATER_DEBUG
     // Call the module init routines
-    modemPower_init();
-    modemCmd_init();
-    modemMgr_init();
-    dataMsgSm_init();
-    dataMsgMgr_init();
-    otaMsgMgr_init();
-    storageMgr_init();
-    gpsMsg_init();
-    gpsPower_init();
-    gps_init();
-    msgSched_init();
-#endif
     dbg_uart_init();
     waterSense_init();
 
@@ -175,18 +125,15 @@ void sysExec_exec(void) {
         if (sysExecData.waterMeasDelayCount < WATER_LF_MEAS_BATCH_COUNT) {
             waterSense_takeReading();
 
-        #ifdef WATER_DEBUG
-        #ifdef DBG_DETAILS
-                    debug_sampProgress();  // type a @
-        #endif
-        #endif
-        #ifdef WATER_DEBUG
-        #ifdef DBG_SAMPLES
-                // print current readings
-                // debug messages are selected/deselected in debugUart.h
-                debug_sample_dump();
-        #endif
-        #endif
+#ifdef DBG_DETAILS
+            debug_sampProgress();  // type a @
+#endif
+
+#ifdef DBG_SAMPLES
+            // print current readings
+            // debug messages are selected/deselected in debugUart.h
+            debug_sample_dump();
+#endif
 
         }
 
@@ -204,61 +151,10 @@ void sysExec_exec(void) {
 
             currentFlowRateInMLPerSec = analyzeWaterMeasurementData();
 
-#ifndef WATER_DEBUG   // Exclude system operation code for water debug
-
-            // Record the water stats and initiate periodic communication
-            storageMgr_exec(currentFlowRateInMLPerSec);
-
-            // Perform communication support - these run the state machines
-            // that perform the software modem interaction.  They do not
-            // initiate modem communication, but once communication is started
-            // they handle all aspects of the modem interfacing.
-            modemCmd_exec();     /* perform Low-level modem interface processing */
-            dataMsgMgr_exec();   /* perform High-level send data message */
-            otaMsgMgr_exec();    /* perform High-level OTA Message Processing */
-            modemMgr_exec();     /* perform Low-level message processing */
-            modemCmd_exec();     /* perform Low-level modem interface processing (again) */
-            modemPower_exec();   /* Handle powering on and off the modem */
-            gpsMsg_exec();       /* Handle GPS message processing */
-            gpsPower_exec();     /* Handle power on and off the GPS device */
-            gps_exec();          /* Manage GPS processing */
-            msgSched_exec();     /* Transmit modem messages if scheduled */
-
-
-            // A system reboot sequence is started when a firmware upgrade message
-            // or system restart message is received. If a reboot sequence has started,
-            // then decrement counter and check for a timeout.  When timeout occurs,
-            // perform a reboot.
-            if (sysExecData.rebootCountdownIsActive == ACTIVATE_REBOOT_KEY) {
-                if (sysExecData.secondsTillReboot >= 0) {
-                    sysExecData.secondsTillReboot -= SECONDS_PER_TREND;
-                }
-                if (sysExecData.secondsTillReboot <= 0) {
-                    sysExec_doReboot();
-                }
-            }
-
-            // Two messages are transmitted shortly after the system starts:
-            // The final assembly message and a monthly check-in message.
-            if (!sysExecData.startUpMsg1WasSent || !sysExecData.startUpMsg2WasSent) {
-                startUpMessageCheck();
-            }
-
-#ifdef SEND_DEBUG_INFO_TO_UART
-            // Only send debug data if the modem is not in use.
-            if (!modemMgr_isAllocated()) {
-                sysExec_sendDebugDataToUart();
-            }
-#endif
-
-#endif  // End ifndef WATER_DEBUG
-
-#ifdef WATER_DEBUG
             // about to sleep for 20 seconds
             while(!dbg_uart_txqempty());  // send the rest of the debug data
             while(dbg_uart_txpend());     // wait for the last character to be consumed
             _delay_cycles(2000);          // wait one character time afterwards so the terminal is not confused
-#endif
         }
     }
 }
@@ -349,144 +245,3 @@ static uint16_t analyzeWaterMeasurementData(void) {
     return currentFlowRateInMLPerSec;
 }
 
-#ifndef WATER_DEBUG   // Exclude system operation code for water debug
-
-/**
- * \brief There are two startup messages that must be sent. 
- *        Check the flags and delays to determine if the first
- *        one should be sent. Once the first startup message is
- *        sent, start the countdown to send the next one - but only
- *        after the first one has completed transmitting.
- *
- * \note The application record is updated after the first
- *       startup message completes. The record is written by the
- *       Application and used by the bootloader to help identify
- *       that the Application started successfully. The
- *       application record lives in one of the flash info
- *       sections.
- * 
- */
-static void startUpMessageCheck(void) {
-    if (!sysExecData.startUpMsg1WasSent) {
-        if (sysExecData.secondsTillStartUpMsgTx > 0) {
-            sysExecData.secondsTillStartUpMsgTx -= SECONDS_PER_TREND;
-        }
-        if (sysExecData.secondsTillStartUpMsgTx <= 0) {
-            sendStartUpMsg1();
-            sysExecData.startUpMsg1WasSent = true;
-            sysExecData.secondsTillStartUpMsgTx = START_UP_MSG_TX_DELAY_IN_SECONDS;
-        }
-    } else if (!sysExecData.startUpMsg2WasSent && !dataMsgMgr_isSendMsgActive()) {
-        if (sysExecData.secondsTillStartUpMsgTx > 0) {
-            sysExecData.secondsTillStartUpMsgTx -= SECONDS_PER_TREND;
-        }
-        if (sysExecData.secondsTillStartUpMsgTx <= 0) {
-            // Update the Application Record after sending the first FA packet.
-            // The record is written by the Application and used by the
-            // bootloader to help identify that the Application started successfully.
-            // We wait until after the first FA packet is sent to write the
-            // Application Record in an attempt to help verify that the
-            // application code does not have a catastrophic issue.
-            // If the bootloader does not see an Application
-            // Record when it boots, then it will go into recovery mode.
-            //
-            // Don't write a new Application Record if one already exists.  It is
-            // erased by the bootloader after a new firmware upgrade has been
-            // performed before jumping to the new Application code.
-            // The Application Record is located in the flash INFO C section.
-            if (!appRecord_checkForValidAppRecord()) {
-                // If the record is not found, write one.
-                appRecord_initAppRecord();
-            }
-            sendStartUpMsg2();
-            sysExecData.startUpMsg2WasSent = true;
-        }
-    }
-}
-
-/**
-* \brief Initiate sending the first startup message which is a 
-*        Final Assembly Message Type
-*/
-static void sendStartUpMsg1(void) {
-    // Prepare the final assembly message
-    // Get the shared buffer (we borrow the ota buffer)
-    uint8_t *payloadP = modemMgr_getSharedBuffer();
-    // Fill in the buffer with the standard message header
-    uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_FINAL_ASSEMBLY);
-    // Initiate sending the final assembly message
-    dataMsgMgr_sendDataMsg(MSG_TYPE_FINAL_ASSEMBLY, payloadP, payloadSize);
-}
-
-/**
-* \brief Initiate sending the second startup message which is a 
-*        Monthly Check-In Message Type
-*/
-static void sendStartUpMsg2(void) {
-    // Prepare the monthly check-in message
-    // Get the shared buffer (we borrow the ota buffer)
-    uint8_t *payloadP = modemMgr_getSharedBuffer();
-    // Fill in the buffer with the standard message header
-    uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_CHECKIN);
-    // Initiate sending the monthly check-in message
-    dataMsgMgr_sendDataMsg(MSG_TYPE_CHECKIN, payloadP, payloadSize);
-}
-
-/**
-* \brief Support utility for the OTA message that resets the 
-*        unit.  Checks to make sure the message keys are
-*        correct, and if so, then starts a countdown counter for
-*        rebooting the unit.
-* 
-* @return bool  Returns true if keys were correct.
-*/
-bool sysExec_startRebootCountdown(uint8_t activateReboot) {
-    bool status = false;
-    if (activateReboot == ACTIVATE_REBOOT_KEY) {
-        sysExecData.secondsTillReboot = REBOOT_DELAY_IN_SECONDS;
-        sysExecData.rebootCountdownIsActive = activateReboot;
-        status = true;
-    }
-    return (status);
-}
-
-/**
-* \brief Support routine that is called to perform a system 
-*        reboot.  Called as a result of receiving the OTA reset
-*        unit message.
-*/
-static void sysExec_doReboot(void) {
-    if (sysExecData.rebootCountdownIsActive == ACTIVATE_REBOOT_KEY) {
-        // Disable the global interrupt
-        disableGlobalInterrupt();
-        // Modem should already be off, but just for safety, turn it off
-        modemPower_powerDownModem();
-        while (1) {
-            // Force watchdog reset
-            WDTCTL = 0xDEAD;
-            while (1);
-        }
-    } else {
-        sysExecData.rebootCountdownIsActive = 0;
-    }
-}
-
-#ifdef SEND_DEBUG_INFO_TO_UART
-/**
-* \brief Send debug information to the uart.  
-*/
-static void sysExec_sendDebugDataToUart(void) {
-    // Get the shared buffer (we borrow the ota buffer)
-    uint8_t *payloadP = modemMgr_getSharedBuffer();
-    uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_DEBUG_TIME_INFO);
-
-    dbgMsgMgr_sendDebugMsg(MSG_TYPE_DEBUG_TIME_INFO, payloadP, payloadSize);
-    _delay_cycles(10000);
-    storageMgr_sendDebugDataToUart();
-    _delay_cycles(10000);
-    // waterSense_sendDebugDataToUart();
-    // _delay_cycles(10000);
-}
-#endif
-
-#endif // End ifndef WATER_DEBUG
