@@ -65,11 +65,13 @@ gpsMsgData_t gpsMsgData;
 */
 static const uint8_t gnrmc_match_template[] = { '$', 'G', 'P', 'R', 'M', 'C' };
 
+#if 0
 /**
 * \var rmcTestString
 * Used for testing only. Mimic a valid RMC sentance.
 */
 static const char rmcTestString[] =  "$GPRMC,051506.000,A,3716.1770,N,12156.0483,W,0.13,213.58,180318,,,A*7B";
+#endif
 
 /*************************
  * Module Prototypes
