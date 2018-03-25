@@ -148,6 +148,7 @@ void sysExec_exec(void) {
     gps_init();
     msgSched_init();
 #endif
+    dbg_uart_init();
     waterSense_init();
 
     // Start the timer interrupt

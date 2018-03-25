@@ -224,6 +224,15 @@ void sysExec_exec(void) {
             if (!sysExecData.startUpMsg1WasSent || !sysExecData.startUpMsg2WasSent) {
                 startUpMessageCheck();
             }
+            // FOR TEST ONLY!!!!!
+            else if ((sysExecData.secondsTillStartUpMsgTx <= 0) && 
+                (sysExecData.startUpMsg1WasSent) &&
+                (sysExecData.startUpMsg2WasSent) &&
+                !modemMgr_isAllocated()) {
+                sysExecData.startUpMsg1WasSent = false;
+                sysExecData.startUpMsg2WasSent = false;
+                sysExecData.secondsTillStartUpMsgTx = START_UP_MSG_TX_DELAY_IN_SECONDS;
+            }
 
 #ifdef SEND_DEBUG_INFO_TO_UART
             // Only send debug data if the modem is not in use.
@@ -370,6 +379,7 @@ static void startUpMessageCheck(void) {
             }
             sendStartUpMsg2();
             sysExecData.startUpMsg2WasSent = true;
+
         }
     }
 }
