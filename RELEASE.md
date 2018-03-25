@@ -1,4 +1,17 @@
 
+
+Afridev-V2 MSP430G2955 Firmware Release Notes
+Version 0.02
+March 25, 2018
+
+Firmware Changes In This Release:
+
+New AfridevV2_MSP430_Water_Debug Project 
+=========================================
+Create a new CCS project to support water debug. This is a separate project that creates links to files in the 
+AfridevV2_MSP430/src folder. This project is used to support IPS UART output for their water debug.
+
+
 Afridev-V2 MSP430G2955 Firmware Release Notes
 Version 0.01
 March 24, 2018
