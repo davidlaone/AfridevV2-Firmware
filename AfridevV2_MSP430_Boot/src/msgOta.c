@@ -1,7 +1,7 @@
 /** 
  * @file msgOta.c
  * \n Source File
- * \n Cascade MSP430 Bootloader Firmware
+ * \n AfridevV2 MSP430 Bootloader Firmware
  * 
  * \brief Manage the details of processing OTA messages.  Runs 
  * the ota state machine to retrieve OTA messages from the modem
@@ -9,7 +9,7 @@
  * firmware upgrade OTA processing. 
  *  
  */
-#include "cascade.h"
+#include "outpour.h"
 #include "linkAddr.h"
 
 /***************************
@@ -563,7 +563,7 @@ static void otaMsgMgr_prepareSosMsg(modemCmdWriteData_t *cmdWriteP) {
     // Fill in individual values of the SOS header
     bufP[0] = 0x01;                // Payload start byte
     bufP[1] = MSG_TYPE_SOS;        // Payload message type
-    bufP[2] = CASCADE_PRODUCT_ID;  // Cascade Product ID
+    bufP[2] = AFRIDEV2_PRODUCT_ID; // AfridevV2 Product ID
     bufP[9] = FW_VERSION_MAJOR;    // FW MAJOR
     bufP[10] = FW_VERSION_MINOR;   // FW MINOR
     bufP[15] = 0xA5;               // End of message header delimeter
@@ -597,7 +597,7 @@ static void otaMsgMgr_prepareFwUpResponseMsg(modemCmdWriteData_t *cmdWriteP) {
     // Fill in individual values of the SOS header
     bufP[0] = 0x01;                // Payload start byte
     bufP[1] = MSG_TYPE_OTAREPLY;   // Payload message type
-    bufP[2] = CASCADE_PRODUCT_ID;  // Cascade Product ID
+    bufP[2] = AFRIDEV2_PRODUCT_ID; // AfridevV2 Product ID
     bufP[9] = FW_VERSION_MAJOR;    // FW MAJOR
     bufP[10] = FW_VERSION_MINOR;   // FW MINOR
 

@@ -1,11 +1,11 @@
 /** 
- * @file cascade.h
+ * @file outpour.h
  * \n Source File
- * \n Cascade MSP430 bootloader Firmware
+ * \n AfridevV2 MSP430 bootloader Firmware
  * 
- * \brief MSP430 System wide header file for Cascade firmware. 
+ * \brief MSP430 System wide header file for AfridevV2 firmware.
  *        Contains function prototypes, MACROS, and data
- *        definitions for all "C" modules in the Cascade
+ *        definitions for all "C" modules in the AfridevV2
  *        bootloader firmware.
  */
 
@@ -19,21 +19,21 @@
 #include "modemMsg.h"
 
 /**
- * \def CASCADE_PRODUCT_ID
- * \brief Specify the cascade product ID number that is sent in 
- *        messages.
+ * \def AFRIDEV2_PRODUCT_ID
+ * \brief Specify the AfridevV2 product ID number that is sent 
+ *        in messages.
  */
-#define CASCADE_PRODUCT_ID ((uint8_t)2)
+#define AFRIDEV2_PRODUCT_ID ((uint8_t)2)
 
 /**
  * \def FW_VERSION_MAJOR
- * \brief Specify the cascade firmware major version number.
+ * \brief Specify the AfridevV2 firmware major version number.
  */
 #define FW_VERSION_MAJOR ((uint8_t)0x02)
 
 /**
  * \def FW_VERSION_MINOR
- * \brief Specify the cascade firmware minor version number.
+ * \brief Specify the AfridevV2 firmware minor version number.
  */
 #define FW_VERSION_MINOR ((uint8_t)0x03)
 
@@ -224,7 +224,7 @@ unsigned int gen_crc16(const unsigned char *data, unsigned int size);
  */
 typedef struct modemCmdWriteData_s {
     modem_command_t cmd;         /**< the modem command */
-    MessageType_t payloadMsgId;  /**< the payload type (Cascade message type) */
+    MessageType_t payloadMsgId;  /**< the payload type (AfridevV2 message type) */
     uint8_t *payloadP;           /**< the payload pointer (if any) */
     uint16_t payloadLength;      /**< size of the payload in bytes */
     uint16_t payloadOffset;      /**< for receiving partial data */

@@ -1,7 +1,7 @@
 /** 
- * @file Cascade
+ * @file linkAddr.h
  * \n Source File
- * \n Cascade MSP430 Firmware
+ * \n AfridevV2 MSP430 Firmware
  * 
  * \brief Access address variables defined in the linker command
  *        file (lnk_msp430g2955.cmd).

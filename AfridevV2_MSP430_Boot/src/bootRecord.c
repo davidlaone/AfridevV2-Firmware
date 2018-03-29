@@ -1,14 +1,14 @@
 /** 
  * @file bootRecord.c
  * \n Source File
- * \n Cascade MSP430 Bootloader Firmware
+ * \n AfridevV2 MSP430 Bootloader Firmware
  * 
  * \brief Routines to support boot and application information 
  *        stored in the INFO-B and INFO-C Sections of flash.
  */
 
 // Includes
-#include "cascade.h"
+#include "outpour.h"
 
 /***************************
  * Module Data Definitions

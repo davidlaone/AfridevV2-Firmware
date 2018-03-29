@@ -1,12 +1,12 @@
 /** 
  * @file flash.c
  * \n Source File
- * \n Cascade MSP430 Bootloader Firmware
+ * \n AfridevV2 MSP430 Bootloader Firmware
  * 
  * \brief Flash support routines
  */
 
-#include "cascade.h"
+#include "outpour.h"
 #include "linkAddr.h"
 
 /***************************

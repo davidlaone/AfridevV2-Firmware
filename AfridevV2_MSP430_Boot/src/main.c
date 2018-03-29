@@ -1,13 +1,13 @@
 /** 
  * @file main.c
  * \n Source File
- * \n Cascade MSP430 Bootloader Firmware
+ * \n AfridevV2 MSP430 Bootloader Firmware
  * 
  * \brief Main entry and init routines
  */
 
 // Includes
-#include "cascade.h"
+#include "outpour.h"
 #include "linkAddr.h"
 
 /***************************

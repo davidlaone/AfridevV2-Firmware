@@ -1,7 +1,7 @@
 /** 
  * @file modemMsg.h
  * \n Source File
- * \n Cascade MSP430 Bootloader Firmware
+ * \n AfridevV2 MSP430 Bootloader Firmware
  * 
  * \brief SIM900 modem data definitions.
  */
@@ -10,7 +10,7 @@
 
 /**
  * \typedef MessageType_t
- * \brief Identify the different Cascade outgoing messages 
+ * \brief Identify the different AfridevV2 outgoing messages 
  *        identifiers.
  */
 typedef enum messageType {
@@ -20,7 +20,7 @@ typedef enum messageType {
 
 /**
  * \typedef OtaOpcode_t 
- * \brief Identify each possible incoming Cascade OTA opcode.
+ * \brief Identify each possible incoming AfridevV2 OTA opcode.
  */
 typedef enum otaOpcodes_e {
     OTA_OPCODE_FIRMWARE_UPGRADE = 0x10

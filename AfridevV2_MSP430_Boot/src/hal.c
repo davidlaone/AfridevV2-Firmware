@@ -1,12 +1,12 @@
 /** 
  * @file hal.c
  * \n Source File
- * \n Cascade MSP430 Bootloader Firmware
+ * \n AfridevV2 MSP430 Bootloader Firmware
  * 
  * \brief Hal support routines
  */
 
-#include "cascade.h"
+#include "outpour.h"
 
 /**
  * \note From the data sheet: Unused I/O pins should be 

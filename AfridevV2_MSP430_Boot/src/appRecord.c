@@ -1,13 +1,13 @@
 /** 
  * @file appRecord.c
  * \n Source File
- * \n Cascade MSP430 Firmware
+ * \n AfridevV2 MSP430 Firmware
  * 
  * \brief Support functions to read/write the Application Record
  *        which is stored in INFO section C.
  */
 
-#include "cascade.h"
+#include "outpour.h"
 
 /***************************
  * Module Data Definitions

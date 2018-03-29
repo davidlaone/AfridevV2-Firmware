@@ -1,14 +1,14 @@
 /** 
  * @file modemCmd.c
  * \n Source File
- * \n Cascade MSP430 Bootloader Firmware
+ * \n AfridevV2 MSP430 Bootloader Firmware
  * 
  * \brief Handle sending commands to and getting responses from 
  *        the modem.  Handle the details of modem message
  *        protocol and format details.  
  */
 
-#include "cascade.h"
+#include "outpour.h"
 
 /***************************
  * Module Data Definitions

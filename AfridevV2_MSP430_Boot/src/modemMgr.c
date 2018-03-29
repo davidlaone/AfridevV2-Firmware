@@ -1,7 +1,7 @@
 /** 
  * @file modemMgr.c
  * \n Source File
- * \n Cascade MSP430 Bootloader Firmware
+ * \n AfridevV2 MSP430 Bootloader Firmware
  * 
  * \brief High level interface that the message objects
  *        (Storage, FA, OTA) use to transmit and receive
@@ -74,7 +74,7 @@
  * Module Data Definitions
  **************************/
 
-#include "cascade.h"
+#include "outpour.h"
 
 /**
  * \def MODEM_SHUTDOWN_DELAY_IN_SEC
