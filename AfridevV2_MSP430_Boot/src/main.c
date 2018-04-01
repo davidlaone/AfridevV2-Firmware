@@ -131,8 +131,8 @@ int main(void) {
     WATCHDOG_TICKLE();
 
     // Perform Hardware initialization
-    clock_init();
-    pin_init();
+    hal_sysClockInit();
+    hal_pinInit();
 
     // Increment the bootloaderRecord Count.  The bootloader record
     // is located in the flash INFO section.  Inside the structure is a
@@ -227,7 +227,7 @@ int main(void) {
             // Disable Interrupts
             disableGlobalInterrupt();
             // Stop timer
-            timerA0_0_halt();
+            timerA1_0_halt();
             // Jump to app
             TI_MSPBoot_APPMGR_JUMPTOAPP();
         }
@@ -258,10 +258,10 @@ static void sosMode(void) {
     WATCHDOG_TICKLE();
 
     // Perform Hardware initialization
-    uart_init();
+    hal_uartInit();
 
     // Perform module initialization
-    timerA0_0_init_for_sys_tick();
+    timerA1_0_init_for_sys_tick();
     modemCmd_init();
     modemPower_init();
     modemMgr_init();
@@ -282,7 +282,7 @@ static void sosMode(void) {
         while (!otaMsgMgr_isOtaProcessingDone()) {
             // A "spinning" delay is used on each iteration.  The delay uses
             // the hardware timer to determine when the delay interval is complete.
-            while (timerA0_0_check_for_sys_tick() == false) {
+            while (timerA1_0_check_for_sys_tick() == false) {
                 // Polling is used for UART communication instead of interrupts.
                 // So we need to run the polling function during the delay.
                 modemCmd_pollUart();
@@ -327,7 +327,7 @@ static void sosMode(void) {
                 // Disable Interrupts
                 disableGlobalInterrupt();
                 // Stop timer
-                timerA0_0_halt();
+                timerA1_0_halt();
                 // Jump to app
                 TI_MSPBoot_APPMGR_JUMPTOAPP();
             }
@@ -381,8 +381,8 @@ static void low_power_12_hour_delay(void) {
     // with potential un-handled interrupts, make sure other interrupts are
     // disabled.
     disableIndividualInterrupts();
-    // Enable TimerA0 to interrupt every .5 seconds
-    timerA0_0_init_for_sleep_tick();
+    // Enable TimerA1 to interrupt every .5 seconds
+    timerA1_0_init_for_sleep_tick();
     // Enable the global interrupt
     enableGlobalInterrupt();
     while (sosDelayTicks) {
@@ -433,7 +433,7 @@ const uint16_t Vector_Table[] =
 #endif
 {
     APP_PROXY_VECTOR(0),          // FFE0 = TA1_1
-    APP_PROXY_VECTOR(1),          // FFE2 = TA1_0
+    (uint16_t)ISR_Timer1_A0,      // FFE2 = TA1_0 (Used by bootloader) 
     APP_PROXY_VECTOR(2),          // FFE4 = P1
     APP_PROXY_VECTOR(3),          // FFE6 = P2
     UNUSED,                       // FFE8 = unused
@@ -441,7 +441,7 @@ const uint16_t Vector_Table[] =
     APP_PROXY_VECTOR(5),          // FFEC = USCI I2C TX/RX
     APP_PROXY_VECTOR(6),          // FFEE = USCI I2C STAT
     APP_PROXY_VECTOR(7),          // FFF0 = TA0_1
-    (uint16_t)ISR_Timer0_A0,      // FFF2 = TA0_0 (Used by bootloader)
+    APP_PROXY_VECTOR(8),          // FFF2 = TA0_0
     APP_PROXY_VECTOR(9),          // FFF4 = WDT
     APP_PROXY_VECTOR(10),         // FFF6 = COMP_A
     APP_PROXY_VECTOR(11),         // FFF8 = TB0_1

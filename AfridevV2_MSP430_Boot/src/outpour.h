@@ -128,33 +128,32 @@ typedef uint32_t sys_tick_t;
  */
 #define TIME_20_MINUTES ((uint16_t)(SEC_PER_MINUTE*(uint16_t)20))
 
-/* Give names to various I/O Port Bits */
-#define LS_VCC     BIT0
-#define RXD        BIT5
-#define TXD        BIT4
-#define GSM_STATUS BIT4
-#define GSM_EN     BIT6
-#define GSM_DCDC   BIT7
-#define TEMP_PWR   BIT3
-#define DEBUG_P2_3 BIT3
-#define DEBUG_P2_4 BIT4
+// Give names to the various port pin numbers
+#define VBAT_GND BIT1		 // Pin 1.1, Output 
+#define GSM_DCDC BIT2		 // Pin 1.2, Output
+#define _1V8_EN BIT3		 // Pin 1.3, Output
+#define GSM_INT BIT4		 // Pin 1.4, Input
+#define GSM_STATUS BIT5		 // Pin 1.5, Input
+#define TM_GPS BIT6          // Pin 1.6, Input
+#define GPS_ON_IND BIT7      // Pin 1.7, Input
 
-// #define DEBUG_IO
-#ifdef DEBUG_IO
-#define P2_3_TOGGLE() (P2OUT ^= BIT3)
-#define P2_3_SET() (P2OUT |= BIT3)
-#define P2_3_CLEAR() (P2OUT &= ~BIT3)
-#define P2_4_TOGGLE() (P2OUT ^= BIT4)
-#define P2_4_SET() (P2OUT |= BIT4)
-#define P2_4_CLEAR() (P2OUT &= ~BIT4)
-#else
-#define P2_3_TOGGLE()
-#define P2_3_SET()
-#define P2_3_CLEAR()
-#define P2_4_TOGGLE()
-#define P2_4_SET()
-#define P2_4_CLEAR()
-#endif
+#define VBAT_MON BIT0		 // Pin 2.0, ADC
+#define I2C_DRV BIT3		 // Pin 2.3, Output
+#define GSM_EN BIT4			 // Pin 2.4, Output
+#define LS_VCC BIT5          // Pin 2.5, Output
+
+#define I2C_SDA BIT1		 // Pin 3.1, Not Used
+#define I2C_SCL BIT2		 // Pin 3.2, Not Used
+#define NTC_ENABLE BIT3      // Pin 3.3, Output
+#define TXD BIT4			 // Pin 3.4, UART
+#define RXD BIT5			 // Pin 3.5, UART
+#define MSP_UART_SEL BIT7    // Pin 3.7, UART Select (Modem or GPS)
+
+#define GPS_ON_OFF BIT2		 // Pin 4.2, Output
+#define NTC_SENSE_INPUT BIT3 // Pin 4.3, ADC
+
+#define MODEM_UART_SELECT_ENABLE() (P3OUT &= ~MSP_UART_SEL)
+#define GPS_UART_SELECT_ENABLE() (P3OUT |= MSP_UART_SEL)
 
 /*******************************************************************************
 *  Centralized method for enabling and disabling MSP430 interrupts
@@ -347,22 +346,22 @@ fwUpdateResult_t otaMsgMgr_getFwUpdateResult(void);
 /*******************************************************************************
 * time.c
 *******************************************************************************/
-void timerA0_0_init_for_sys_tick(void);
-bool timerA0_0_check_for_sys_tick(void);
-void timerA0_0_init_for_sleep_tick(void);
-__interrupt void ISR_Timer0_A0(void);
+void timerA1_0_init_for_sys_tick(void);
+bool timerA1_0_check_for_sys_tick(void);
+void timerA1_0_init_for_sleep_tick(void);
+__interrupt void ISR_Timer1_A0(void);
 uint32_t getSysTicksSinceBoot(void);
-static inline void timerA0_0_halt(void) {
-    TA0CCTL0 &= ~CCIFG;
-    TA0CTL = 0;
+static inline void timerA1_0_halt(void) {
+    TA1CCTL0 &= ~CCIFG;
+    TA1CTL = 0;
 }
 
 /*******************************************************************************
 * hal.c
 *******************************************************************************/
-void clock_init(void);
-void uart_init(void);
-void pin_init(void);
+void hal_sysClockInit(void);
+void hal_uartInit(void);
+void hal_pinInit(void);
 
 /*******************************************************************************
 * flash.c

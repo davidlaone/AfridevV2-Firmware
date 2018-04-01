@@ -63,11 +63,12 @@ rx byte template: <start-byte>,cmd,crc[2],<end-byte>
 
 /**
  * \def ISR_RX_BUF_SIZE 
- * \brief Define the size of the UART receive ISR buffer. The 
- *        size is made large enough to read all used modem
- *        message types and includes a maximum of 16 bytes for
- *        OTA payload data received via the
- *        M_COMMAND_GET_INCOMING_PARTIAL message type.
+ * \brief Define the size of the UART receive buffer.  Most 
+ *        OTA messages are relatively small. The only exception
+ *        is the firmware upgrade message. A get partial data
+ *        response (M_COMMAND_GET_INCOMING_PARTIAL) from the
+ *        modem will include 13 bytes of modem overhead data
+ *        plus the amount of data requested.
  */
 #define ISR_RX_BUF_SIZE ((uint16_t)OTA_PAYLOAD_MAX_RX_READ_LENGTH+16)
 

@@ -1,7 +1,7 @@
 /** 
- * @file modemLink.c
+ * @file modemPower.c
  * \n Source File
- * \n AfridevV2 MSP430 Bootloader Firmware
+ * \n Outpour MSP430 Firmware
  * 
  * \brief modem module responsible for bringing up the modem and 
  *        shutting it down.
@@ -54,7 +54,7 @@ modemLinkData_t mlData;
  * Module Prototypes
  *********************/
 
-static bool modemPowerUpStateMachine(void);
+static void modemPowerUpStateMachine(void);
 
 /***************************
  * Module Public Functions
@@ -62,7 +62,7 @@ static bool modemPowerUpStateMachine(void);
 
 /**
 * \brief Executive that manages sequencing the modem power up 
-*        and power down.  Called on the 1 second tick rate to
+*        and power down.  Called on the 2 second tick rate to
 *        handle bringing the modem up and down.
 * \ingroup EXEC_ROUTINE
 */
@@ -99,7 +99,7 @@ void modemPower_powerDownModem(void) {
     mlData.modemUp = false;
     mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_IDLE;
     P1OUT &= ~GSM_DCDC;
-    P1OUT &= ~LS_VCC;
+    P2OUT &= ~LS_VCC;
 }
 
 bool modemPower_isModemOn(void) {
@@ -121,47 +121,43 @@ uint16_t modemPower_getModemUpTimeInSysTicks(void) {
 *        hardware steps. This is a timebased sequence to control
 *        the hardware power on.
 */
-static bool modemPowerUpStateMachine(void) {
-    // Continue processing is used to determine whether
-    // the do-while state processing loop should continue
-    // for another iteration.
-    bool continue_processing = false;
+static void modemPowerUpStateMachine(void) {
     volatile sys_tick_t onTime = GET_ELAPSED_SYS_TICKS(mlData.startTimestamp);
     switch (mlData.powerOnHwSeqState) {
     case MODEM_POWERUP_STATE_IDLE:
         break;
     case MODEM_POWERUP_STATE_ALL_OFF:
-        P1OUT &= ~(GSM_DCDC|LS_VCC);
-        if (onTime >= (1*SYS_TICKS_PER_SECOND)) {
-            mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_DCDC;
-        }
+        P1OUT &= ~GSM_DCDC;
+        P2OUT &= ~LS_VCC;
+        mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_DCDC;
         break;
     case MODEM_POWERUP_STATE_DCDC:
-        if (onTime >= (2*SYS_TICKS_PER_SECOND)) {
+        if (onTime >= (2 * SYS_TICKS_PER_SECOND)) {
             P1OUT |= GSM_DCDC;
             mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_LSVCC;
         }
         break;
     case MODEM_POWERUP_STATE_LSVCC:
-        if (onTime >= (3*SYS_TICKS_PER_SECOND)) {
-            P1OUT |= LS_VCC;
+        if (onTime >= (4 * SYS_TICKS_PER_SECOND)) {
+            P2OUT |= LS_VCC;
             mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_GSM_HIGH;
         }
         break;
     case MODEM_POWERUP_STATE_GSM_HIGH:
-        if (onTime >= (4*SYS_TICKS_PER_SECOND)) {
-            P1OUT |= GSM_EN;
+        if (onTime >= (6 * SYS_TICKS_PER_SECOND)) {
+            P2OUT |= GSM_EN;
             mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_GSM_LOW;
         }
         break;
     case MODEM_POWERUP_STATE_GSM_LOW:
-        if (onTime >= (10*SYS_TICKS_PER_SECOND)) {
-            P1OUT &= ~GSM_EN;
+        if (onTime >= (10 * SYS_TICKS_PER_SECOND)) {
+            P2OUT &= ~GSM_EN;
             mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_INIT_WAIT;
         }
         break;
     case MODEM_POWERUP_STATE_INIT_WAIT:
-        if (onTime >= (15*SYS_TICKS_PER_SECOND)) {
+        if (onTime >= (15 * SYS_TICKS_PER_SECOND)) {
+            MODEM_UART_SELECT_ENABLE();
             mlData.powerOnHwSeqState = MODEM_POWERUP_STATE_READY;
             mlData.modemUp = true;
         }
@@ -169,6 +165,5 @@ static bool modemPowerUpStateMachine(void) {
     case MODEM_POWERUP_STATE_READY:
         break;
     }
-    return continue_processing;
 }
 

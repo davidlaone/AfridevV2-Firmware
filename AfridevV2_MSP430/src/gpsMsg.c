@@ -47,10 +47,14 @@ typedef struct gpsMsgdata_s {
  ***************************/
 
 /**
-* \var rxBuf 
-* Where we will put the bytes received from the GPS 
+* \var gpsRxBuf 
+* Where we will put the bytes received from the GPS. This buffer
+* location is specified in the linker command file to live right 
+* below the stack space.
 */
-static char rxBuf[RX_BUF_SIZE];
+#pragma SET_DATA_SECTION(".commbufs")
+char gpsRxBuf[RX_BUF_SIZE];
+#pragma SET_DATA_SECTION()
 
 /**
 * \var gpsMsgData
@@ -65,7 +69,7 @@ gpsMsgData_t gpsMsgData;
 */
 static const uint8_t gnrmc_match_template[] = { '$', 'G', 'P', 'R', 'M', 'C' };
 
-#if 0
+#if 1
 /**
 * \var rmcTestString
 * Used for testing only. Mimic a valid RMC sentance.
@@ -239,7 +243,7 @@ bool gpsMsg_gotDataValidRmcMessage(void) {
 uint8_t gpsMsg_getRmcMessage(uint8_t *bufP) {
     uint8_t length = 0;
     // Copy the RMC string to the buffer
-    memcpy(bufP, rxBuf, gpsMsgData.rmcMsgLength);
+    memcpy(bufP, gpsRxBuf, gpsMsgData.rmcMsgLength);
     length = gpsMsgData.rmcMsgLength;
     return length;
 }
@@ -331,7 +335,7 @@ void gpsMsg_isr(void) {
 
         // Add byte to the receive buffer
         if (gpsMsgData.isrRxIndex < RX_BUF_SIZE) {
-            rxBuf[gpsMsgData.isrRxIndex] = rxByte;
+            gpsRxBuf[gpsMsgData.isrRxIndex] = rxByte;
             gpsMsgData.isrRxIndex++;
         }
 
@@ -365,17 +369,17 @@ void gpsMsg_isr(void) {
 *         in the RMC message.
 */
 static bool gpsMsg_checkForRmcDataValid(void) {
-#if 0
+#if 1
     //*******************************************************
     // For Test Only!!!! - Simulate RMC String
     static uint8_t testCount = 0;
     if (++testCount == 5) {
         testCount = 0;
-        memcpy (rxBuf, rmcTestString, sizeof(rmcTestString));
+        memcpy (gpsRxBuf, rmcTestString, sizeof(rmcTestString));
     }
     //*******************************************************
 #endif
-    return (rxBuf[18] == 'A') ? true : false;
+    return (gpsRxBuf[18] == 'A') ? true : false;
 }
 
 /**
@@ -389,7 +393,7 @@ static bool gpsMsg_matchRmc(void) {
     int i;
     bool match = true;
     for (i = 0; i < sizeof(gnrmc_match_template); i++) {
-        if (rxBuf[i] != gnrmc_match_template[i]) {
+        if (gpsRxBuf[i] != gnrmc_match_template[i]) {
             match = false;
         }
     }
@@ -419,7 +423,7 @@ static bool gpsMsg_verifyChecksum(void) {
     // Verify that we received a minimal length and the asterisk before the checksum.
     // The '*' (0x2A) will be at five characters from the end.
     // An example end of sentence: 0x2A,0x37,0x33,0xD,0xA
-    if ((gpsMsgData.isrRxIndex < 20) || (rxBuf[gpsMsgData.isrRxIndex - 5] != '*')) {
+    if ((gpsMsgData.isrRxIndex < 20) || (gpsRxBuf[gpsMsgData.isrRxIndex - 5] != '*')) {
         // printf("\n\n**** INCOMPLETE MESSAGE ****\n\n");
         return false;
     }
@@ -427,15 +431,15 @@ static bool gpsMsg_verifyChecksum(void) {
     // Calculate the checksum over the NMEA sentence.
     // Exclude the first '$' and calculate up to the '*'.
     for (i = 1; i < (gpsMsgData.isrRxIndex - 5); i++) {
-        calculatedChecksum ^= rxBuf[i];
+        calculatedChecksum ^= gpsRxBuf[i];
     }
     // printf("Calculated Checksum: 0x%x\n", calculatedChecksum);
 
     // Get the received checksum value as a hex number
     // The Most significant nibble of the checksum is 4 characters from the end.
     // The least significant nibble of the checksum is 3 characters from the end.
-    rxChecksumMSN = asciiToHex(rxBuf[gpsMsgData.isrRxIndex - 4]);
-    rxChecksumLSN = asciiToHex(rxBuf[gpsMsgData.isrRxIndex - 3]);
+    rxChecksumMSN = asciiToHex(gpsRxBuf[gpsMsgData.isrRxIndex - 4]);
+    rxChecksumLSN = asciiToHex(gpsRxBuf[gpsMsgData.isrRxIndex - 3]);
     rxChecksum = (rxChecksumMSN << 4) | rxChecksumLSN;
     // printf("Received Checksum: 0x%x\n", rxChecksum);
 

@@ -147,9 +147,9 @@ typedef struct mwBatchData_s {
  *        specified in the linker command file to live right
  *        below the stack space.
  */
-	#pragma SET_DATA_SECTION(".commbufs")
-	    uint8_t otaBuf[OTA_RESPONSE_LENGTH];  /**< A buffer to hold one OTA message */
-	#pragma SET_DATA_SECTION()
+#pragma SET_DATA_SECTION(".commbufs")
+uint8_t otaBuf[OTA_PAYLOAD_MAX_RX_READ_LENGTH];  /**< A buffer to hold one OTA message */
+#pragma SET_DATA_SECTION()
 
 /**
  * \var mwBatchData
