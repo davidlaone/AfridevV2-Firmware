@@ -23,7 +23,7 @@
  * \brief Specify the AfridevV2 product ID number that is sent 
  *        in messages.
  */
-#define AFRIDEV2_PRODUCT_ID ((uint8_t)2)
+#define AFRIDEV2_PRODUCT_ID ((uint8_t)3)
 
 /**
  * \def FW_VERSION_MAJOR
@@ -267,7 +267,7 @@ typedef struct modemCmdReadData_s {
  * \brief Define the data length of an OTA response message. The
  *        data follows the header in the message.
  */
-#define OTA_RESPONSE_DATA_LENGTH ((uint8_t)32)
+#define OTA_RESPONSE_DATA_LENGTH ((uint8_t)112)
 
 /**
  * \typedef otaResponse_t

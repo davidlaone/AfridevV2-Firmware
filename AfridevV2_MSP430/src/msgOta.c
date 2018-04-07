@@ -118,6 +118,7 @@ static bool otaMsgMgr_processFirmwareUpgrade(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processResetDevice(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processSetTransmissionRate(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processClockRequest(otaResponse_t *otaRespP);
+static bool otaMsgMgr_processGpsRequest(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processUnknownRequest(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processMemoryRead(otaResponse_t *otaRespP);
 static void sendPhase0_OtaCommand(void);
@@ -1060,6 +1061,56 @@ static bool otaMsgMgr_processClockRequest(otaResponse_t *otaRespP) {
 }
 
 /**
+* 
+* \brief (msgId=0x0D) Request GPS data. If request type is 0, 
+*        return GPS data from last measurement. If request type
+*        is 1, schedule a new GPS measurement.
+* 
+* \brief Input OTA parameters
+* \li msg opcode  (1 byte)
+* \li msg id      (2 bytes)
+* \li requestType (1 byte) 0=return existing,1=schedule new GPS
+*     measurement
+* 
+* \brief Output OTA response
+* \li msg opcode (1 byte)
+* \li msg id     (2 bytes)
+* \li status     (1 byte): 1 = success, 0xFF = failure
+*  
+* \brief If requestType = 0, send stored GPS data as part of OTA 
+*        response. Data will be placed after status byte.
+* \li GPS data   (variable length, less than 96 bytes)
+* 
+* @param otaRespP Pointer to the response data and other info
+*                 received from the modem.
+* 
+* @return bool Set to true if a OTA response should be sent
+*/
+static bool otaMsgMgr_processGpsRequest(otaResponse_t *otaRespP) {
+    uint8_t *responseDataP = &otaData.responseBufP[RESPONSE_DATA_OFFSET];
+    // Create pointer to where status byte lives
+    uint8_t *statusP = responseDataP++;
+    // Grab the requestType from the input buffer
+    uint8_t requestType = otaRespP->buf[3];
+    // Prepare OTA response.  It will be sent after this function exits.
+    prepareOtaResponse(otaRespP->buf[0], otaRespP->buf[1], otaRespP->buf[2], NULL, 0);
+    // Set status to success for now
+    *statusP = 1;
+    if (requestType == 0) {
+        // Return existing GPS data. Data will be copied to location after status byte
+        gpsMsg_getRmcMessage(responseDataP);
+    } else if (requestType == 1) {
+        // Schedule a new GPS measurement and message
+        msgSched_scheduleGpsMeasurement();
+        msgSched_scheduleGpsLocationMessage();
+    } else {
+        // Invalid request type
+        *statusP = 0xFF;  // failure status
+    }
+    return true;
+}
+
+/**
 * \brief (msgId=0x10) Process a Firmware Upgrade OTA command. 
 *        This message is handled differently than other
 *        messages.  A separate, special state machine is called
@@ -1256,7 +1307,7 @@ static bool otaMsgMgr_processMemoryRead(otaResponse_t *otaRespP) {
     }
 
     if (readLength) {
-        // Hack to over-ride 32 byte max response data return
+        // Hack to over-ride OTA_RESPONSE_DATA_LENGTH byte max response data return
         otaData.cmdWrite.payloadLength = OTA_RESPONSE_HEADER_LENGTH + 8 + readLength;
     }
 
@@ -1336,6 +1387,9 @@ static void otaMsgMgr_processOtaMsg(void) {
     case OTA_OPCODE_CLOCK_REQUEST:
         sendOtaResponse = otaMsgMgr_processClockRequest(otaRespP);
         break;
+    case OTA_OPCODE_GPS_REQUEST:
+        sendOtaResponse = otaMsgMgr_processGpsRequest(otaRespP);
+        break;
     case OTA_OPCODE_MEMORY_READ:
         sendOtaResponse = otaMsgMgr_processMemoryRead(otaRespP);
         break;
@@ -1380,7 +1434,7 @@ static void prepareOtaResponse(uint8_t opcode,
     // Fill in the buffer with the standard message header
     uint8_t index = storageMgr_prepareMsgHeader(bufP, MSG_TYPE_OTAREPLY);
 
-    // Always send 32 bytes back beyond the header - even if some not used.
+    // Always send OTA_RESPONSE_DATA_LENGTH bytes back beyond the header - even if some not used.
     // Allows for future additions to return other data
     uint8_t returnLength = index + OTA_RESPONSE_DATA_LENGTH;
 
@@ -1391,7 +1445,7 @@ static void prepareOtaResponse(uint8_t opcode,
     bufP[index++] = msgId1;
 
     // There may be additional response data to return.  Max data
-    // length of response is 32 minus opcode, msgId0 and msgI1.
+    // length of response is OTA_RESPONSE_DATA_LENGTH minus opcode, msgId0 and msgI1.
     if (responseDataP && responseDataLen && (responseDataLen <= (OTA_RESPONSE_DATA_LENGTH - 3))) {
         memcpy(&bufP[index], responseDataP, responseDataLen);
     }

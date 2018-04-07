@@ -79,7 +79,7 @@ typedef struct gpsData_s {
  */
 gpsData_t gpsData;
 
-static const char *no_gps_data_string = "NO DATA\n";
+static const char no_gps_data_string[] = "NO DATA\n";
 
 /*************************
  * Module Prototypes
@@ -295,4 +295,28 @@ uint16_t gps_getGpsMessage(uint8_t **payloadPP) {
     *payloadPP = payloadP;
     // return payload size
     return payloadSize;
+}
+
+/**
+* \brief Copy the last RMC message that was received into the 
+*        buffer. If there was not a RMC message received, then
+*        return the string "NO DATA". Copies at most 96 bytes
+*        into ther buffer. The data is always a NULL terminated
+*        ASCII string.
+* 
+* @param bufP Buffer to copy the RMC message string into.
+* 
+* @return uint16_t The number of bytes copied.
+*/
+uint16_t gps_getGpsData(uint8_t *bufP) {
+    uint8_t length;
+    if (gpsMsg_gotRmcMessage()) {
+        length = gpsMsg_getRmcMessage(bufP);
+    } else {
+        // If a RMC string is not available, put the default no-data string.
+        strcpy((char *)bufP, no_gps_data_string);
+        length = sizeof(no_gps_data_string);
+    }
+    // return length of data put in the buffer
+    return length;
 }

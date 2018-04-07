@@ -44,7 +44,7 @@ typedef struct __attribute__((__packed__)) mainData_s {
     uint8_t rebootReason;    /**< Read from the MSP430 to identify boot reason */
     bool appRecordIsGood;    /**< Flag to indicate appRecord is valid */
     int16_t blrRecordCount;  /**< Contains the bootRecord count field */
-    int8_t newFwCopyResult;  /**< Result of the FW copy attemp from backup image to main image*/
+    int8_t newFwCopyResult;  /**< Result of the FW copy attempt from backup image to main image*/
     bool newFwIsReady;       /**< Value of fwIsReady flag in the appRecord */
     uint16_t newFwCrc;       /**< Value of newFwCrc in the appRecord */
 } bootData_t;

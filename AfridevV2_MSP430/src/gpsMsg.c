@@ -17,7 +17,7 @@
  * Module Data Definitions
  **************************/
 
-#define RX_BUF_SIZE 96
+#define GPS_RX_BUF_SIZE 96
 
 #define MAX_RMC_WAIT_TIME_IN_SEC (10 * TIME_SCALER)
 
@@ -53,7 +53,7 @@ typedef struct gpsMsgdata_s {
 * below the stack space.
 */
 #pragma SET_DATA_SECTION(".commbufs")
-char gpsRxBuf[RX_BUF_SIZE];
+char gpsRxBuf[GPS_RX_BUF_SIZE];
 #pragma SET_DATA_SECTION()
 
 /**
@@ -234,7 +234,8 @@ bool gpsMsg_gotDataValidRmcMessage(void) {
 }
 
 /**
-* \brief Retrieve the RMC message that is available.
+* \brief Retrieve the RMC message that is available. Copies at 
+*        most 96 bytes into ther buffer.
 * 
 * @param bufP Buffer to copy the RMC message into.
 * 
@@ -242,9 +243,14 @@ bool gpsMsg_gotDataValidRmcMessage(void) {
 */
 uint8_t gpsMsg_getRmcMessage(uint8_t *bufP) {
     uint8_t length = 0;
+    // Make sure length is valid, otherwise cap the the length
+    if (gpsMsgData.rmcMsgLength < GPS_RX_BUF_SIZE) {
+        length = gpsMsgData.rmcMsgLength;
+    } else {
+        length = GPS_RX_BUF_SIZE;
+    }
     // Copy the RMC string to the buffer
-    memcpy(bufP, gpsRxBuf, gpsMsgData.rmcMsgLength);
-    length = gpsMsgData.rmcMsgLength;
+    memcpy(bufP, gpsRxBuf, length);
     return length;
 }
 
@@ -334,7 +340,7 @@ void gpsMsg_isr(void) {
     if (gpsMsgData.isrGotStart$) {
 
         // Add byte to the receive buffer
-        if (gpsMsgData.isrRxIndex < RX_BUF_SIZE) {
+        if (gpsMsgData.isrRxIndex < GPS_RX_BUF_SIZE) {
             gpsRxBuf[gpsMsgData.isrRxIndex] = rxByte;
             gpsMsgData.isrRxIndex++;
         }
@@ -369,13 +375,15 @@ void gpsMsg_isr(void) {
 *         in the RMC message.
 */
 static bool gpsMsg_checkForRmcDataValid(void) {
-#if 1
+#if 0
     //*******************************************************
     // For Test Only!!!! - Simulate RMC String
     static uint8_t testCount = 0;
     if (++testCount == 5) {
         testCount = 0;
         memcpy (gpsRxBuf, rmcTestString, sizeof(rmcTestString));
+        gpsMsgData.isrRxIndex = sizeof(rmcTestString);
+        gpsMsgData.rmcMsgLength = sizeof(rmcTestString);
     }
     //*******************************************************
 #endif
