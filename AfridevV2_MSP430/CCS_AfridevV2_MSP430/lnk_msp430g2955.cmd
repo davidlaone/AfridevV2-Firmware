@@ -73,39 +73,28 @@ __App_Proxy_Vector_Start = (__App_Reset_Vector-0x38);
 
 MEMORY
 {
-    SFR                     : origin = 0x0000, length = 0x0010
-    PERIPHERALS_8BIT        : origin = 0x0010, length = 0x00F0
-    PERIPHERALS_16BIT       : origin = 0x0100, length = 0x0100
-    RAM                     : origin = 0x1100, length = 0x0F00
-    STACK                   : origin = 0x2000, length = 0x0100
-    INFOA                   : origin = 0x10C0, length = 0x0040
-    INFOB                   : origin = 0x1080, length = 0x0040
-    INFOC                   : origin = 0x1040, length = 0x0040
-    INFOD                   : origin = 0x1000, length = 0x0040
-    FLASH_WEEK1_DATA        : origin = 0x7400, length = 0x400
-    FLASH_WEEK2_DATA        : origin = 0x7800, length = 0x400
-    FLASH_WEEK3_DATA        : origin = 0x7C00, length = 0x400
-    FLASH_WEEK4_DATA        : origin = 0x8000, length = 0x400
-    FLASH_WEEK5_DATA        : origin = 0x8400, length = 0x400
-    FLASH_WEEK6_DATA        : origin = 0x8800, length = 0x400
-    FLASH_WEEK7_DATA        : origin = 0x8C00, length = 0x400
-    FLASH                   : origin = 0x9000, length = 0x4FC6 /* (20K-58 bytes) */
-    INT00                   : origin = 0xFFE0, length = 0x0002
-    INT01                   : origin = 0xFFE2, length = 0x0002
-    INT02                   : origin = 0xFFE4, length = 0x0002
-    INT03                   : origin = 0xFFE6, length = 0x0002
-    INT04                   : origin = 0xFFE8, length = 0x0002
-    INT05                   : origin = 0xFFEA, length = 0x0002
-    INT06                   : origin = 0xFFEC, length = 0x0002
-    INT07                   : origin = 0xFFEE, length = 0x0002
-    INT08                   : origin = 0xFFF0, length = 0x0002
-    INT09                   : origin = 0xFFF2, length = 0x0002
-    INT10                   : origin = 0xFFF4, length = 0x0002
-    INT11                   : origin = 0xFFF6, length = 0x0002
-    INT12                   : origin = 0xFFF8, length = 0x0002
-    INT13                   : origin = 0xFFFA, length = 0x0002
-    INT14                   : origin = 0xFFFC, length = 0x0002
-    RESET                   : origin = 0xFFFE, length = 0x0002
+   SFR                     : origin = 0x0000, length = 0x0010
+   PERIPHERALS_8BIT        : origin = 0x0010, length = 0x00F0
+   PERIPHERALS_16BIT       : origin = 0x0100, length = 0x0100
+   RAM                     : origin = 0x1100, length = 0x0F00
+   STACK                   : origin = 0x2000, length = 0x0100
+   INFOA                   : origin = 0x10C0, length = 0x0040
+   INFOB                   : origin = 0x1080, length = 0x0040
+   INFOC                   : origin = 0x1040, length = 0x0040
+   INFOD                   : origin = 0x1000, length = 0x0040
+   FLASH_WEEK1_DATA        : origin = 0x7400, length = 0x0400
+   FLASH_WEEK2_DATA        : origin = 0x7800, length = 0x0400
+   FLASH_WEEK3_DATA        : origin = 0x7C00, length = 0x0400
+   FLASH_WEEK4_DATA        : origin = 0x8000, length = 0x0400
+   FLASH_WEEK5_DATA        : origin = 0x8400, length = 0x0400
+   FLASH_WEEK6_DATA        : origin = 0x8800, length = 0x0400
+   FLASH_WEEK7_DATA        : origin = 0x8C00, length = 0x0400
+   FLASH                   : origin = 0x9000, length = 0x4FC6 /* (20K-58 bytes) */
+
+   // Interrupt Proxy table from  _App_Proxy_Vector_Start->(RESET-1)
+   APP_PROXY_VECTORS       : origin = 0xDFC6, length = 56
+   // App reset from _App_Reset_Vector
+   RESET                   : origin = 0xDFFE, length = 0x0002
 }
 
 /****************************************************************************/
@@ -138,28 +127,13 @@ SECTIONS
     .mspabi.exidx : {} > FLASH            /* C++ CONSTRUCTOR TABLES            */
     .mspabi.extab : {} > FLASH            /* C++ CONSTRUCTOR TABLES            */
 
-    .infoA     : {} > INFOA              /* MSP430 INFO FLASH MEMORY SEGMENTS */
+    .infoA     : {} > INFOA               /* MSP430 INFO FLASH MEMORY SEGMENTS */
     .infoB     : {} > INFOB
     .infoC     : {} > INFOC
     .infoD     : {} > INFOD
 
-    /* MSP430 INTERRUPT VECTORS          */
-    TIMER1_A1    : { * ( .int00 ) } > INT00 type = VECT_INIT
-    TIMER1_A0    : { * ( .int01 ) } > INT01 type = VECT_INIT
-    PORT1        : { * ( .int02 ) } > INT02 type = VECT_INIT
-    PORT2        : { * ( .int03 ) } > INT03 type = VECT_INIT
-    TRAPINT      : { * ( .int04 ) } > INT04 type = VECT_INIT
-    ADC10        : { * ( .int05 ) } > INT05 type = VECT_INIT
-    USCIAB0TX    : { * ( .int06 ) } > INT06 type = VECT_INIT
-    USCIAB0RX    : { * ( .int07 ) } > INT07 type = VECT_INIT
-    TIMER0_A1    : { * ( .int08 ) } > INT08 type = VECT_INIT
-    TIMER0_A0    : { * ( .int09 ) } > INT09 type = VECT_INIT
-    WDT          : { * ( .int10 ) } > INT10 type = VECT_INIT
-    COMPARATORA   : { * ( .int11 ) } > INT11 type = VECT_INIT
-    TIMERB1      : { * ( .int12 ) } > INT12 type = VECT_INIT
-    TIMERB0      : { * ( .int13 ) } > INT13 type = VECT_INIT
-    NMI          : { * ( .int14 ) } > INT14 type = VECT_INIT
-    .reset       : {}               > RESET  /* MSP430 RESET VECTOR         */ 
+    .APP_PROXY_VECTORS : {} > APP_PROXY_VECTORS /* INTERRUPT PROXY TABLE       */
+    .reset             : {} > RESET             /* MSP430 RESET VECTOR         */
 }
 
 /****************************************************************************/
