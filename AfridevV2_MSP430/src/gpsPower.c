@@ -24,7 +24,7 @@
 #define GPS_1_8V_DISABLE() (P1OUT &= ~_1V8_EN)
 #define GPS_ON_OFF_HIGH() (P4OUT |= GPS_ON_OFF)
 #define GPS_ON_OFF_LOW() (P4OUT &= ~GPS_ON_OFF)
-#define GPS_GET_SYSTEM_ON() (!(P1IN &= GPS_ON_IND))
+#define GPS_GET_SYSTEM_ON() ((P1IN & GPS_ON_IND)==0)
 #else
 static int doNothing(void) { return 0; }
 #define GPS_1_8V_ENABLE() doNothing()
@@ -90,8 +90,6 @@ static void gpsPower_stateMachine(void);
 */
 void gpsPower_exec(void) {
 
-    // printf("%s\n", __func__);
-
     if (gpsPowerData.active) {
         gpsPower_stateMachine();
     }
@@ -112,7 +110,6 @@ void gpsPower_init(void) {
 * \ingroup PUBLIC_API
 */
 void gpsPower_restart(void) {
-    // printf("%s\n",__func__);
     gpsPowerData.active = true;
     gpsPowerData.gpsUp = false;
     gpsPowerData.gpsUpError = false;
@@ -192,14 +189,12 @@ static void gpsPower_stateMachine(void) {
         break;
 
     case GPS_POWERUP_STATE_ALL_OFF:
-        // printf("%s: GPS_POWERUP_STATE_ALL_OFF\n",__func__);
         GPS_1_8V_DISABLE();
         gpsPowerData.state = GPS_POWERUP_STATE_ENABLE_1_8V;
         break;
 
     case GPS_POWERUP_STATE_ENABLE_1_8V:
         if (onTime >= (2 * TIME_SCALER)) {
-            // printf("%s: GPS_POWERUP_STATE_ENABLE_1_8V\n",__func__);
             GPS_1_8V_ENABLE();
             gpsPowerData.state = GPS_POWERUP_STATE_GPS_ON_OFF_HIGH;
         }
@@ -207,7 +202,6 @@ static void gpsPower_stateMachine(void) {
 
     case GPS_POWERUP_STATE_GPS_ON_OFF_HIGH:
         if (onTime >= (6 * TIME_SCALER)) {
-            // printf("%s: GPS_POWERUP_STATE_GPS_ON_OFF_HIGH\n",__func__);
             GPS_ON_OFF_HIGH();
             gpsPowerData.state = GPS_POWERUP_STATE_GPS_ON_OFF_LOW;
         }
@@ -215,7 +209,6 @@ static void gpsPower_stateMachine(void) {
 
     case GPS_POWERUP_STATE_GPS_ON_OFF_LOW:
         if (onTime >= (8 * TIME_SCALER)) {
-            // printf("%s: GPS_POWERUP_STATE_GPS_ON_OFF_LOW\n",__func__);
             GPS_ON_OFF_LOW();
             gpsPowerData.state = GPS_POWERUP_STATE_LOOK_FOR_SYSTEM_ON;
         }
@@ -226,7 +219,6 @@ static void gpsPower_stateMachine(void) {
             GPS_UART_SELECT_ENABLE();
             gpsPowerData.state = GPS_POWERUP_STATE_IDLE;
             gpsPowerData.gpsUp = true;
-            // printf("%s: GPS_POWERUP_STATE_LOOK_FOR_SYSTEM_ON\n",__func__);
         } else if (GET_ELAPSED_TIME_IN_SEC(gpsPowerData.startTimestamp) > (12 * TIME_SCALER)) {
             gpsPowerData.gpsUpError = true;
         }

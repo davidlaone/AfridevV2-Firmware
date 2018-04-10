@@ -69,7 +69,7 @@ gpsMsgData_t gpsMsgData;
 */
 static const uint8_t gnrmc_match_template[] = { '$', 'G', 'P', 'R', 'M', 'C' };
 
-#if 1
+#ifdef SIMULATE_GPS_FIX
 /**
 * \var rmcTestString
 * Used for testing only. Mimic a valid RMC sentance.
@@ -117,8 +117,6 @@ void gpsMsg_init(void) {
 */
 void gpsMsg_exec(void) {
 
-    // printf("%s\n",__func__);
-
     // If we are NOT currently active - just return.
     if (!gpsMsgData.busy) {
         return;
@@ -151,8 +149,6 @@ bool gpsMsg_start(void) {
     if (gpsMsgData.busy) {
         return false;
     }
-
-    // printf("%s\n",__func__);
 
     // Mark module as busy
     gpsMsgData.busy = true;
@@ -300,13 +296,11 @@ static void gpsMsg_isrRestart(void) {
 static void gpsMSg_processRmcSentence(void) {
     bool dataIsValid = false;
     if (gpsMsg_verifyChecksum()) {
-        // printf("Got Valid RMC Message\n");
         gpsMsgData.rmcMsgAvailable = true;
         gpsMsgData.rmcMsgLength = gpsMsgData.isrRxIndex;
 
         dataIsValid = gpsMsg_checkForRmcDataValid();
         if (dataIsValid) {
-            // printf("Got Satellite Fix\n");
             gpsMsgData.rmcDataIsValid = true;
         }
         // Only run until we receive one RMC message.
@@ -327,9 +321,6 @@ void gpsMsg_isr(void) {
 
     uint8_t rxByte = UCA0RXBUF;
 
-    // printf("%c", rxByte);
-    // static int count;
-
     // Look for the start of a new NMEA sentence.
     if (rxByte == '$') {
         gpsMsgData.isrRxIndex = 0;
@@ -347,15 +338,10 @@ void gpsMsg_isr(void) {
 
         // Check for LF character which marks the end of the NMEA sentence.
         if (rxByte == 0xA) {
-            // printf("ISR: Got NMEA message %d\n", ++count);
-            // gpsMsg_dumpSentence();
             // Reset flag
             gpsMsgData.isrGotStart$ = false;
             // Check if we might have a RMC message
             if (gpsMsg_matchRmc()) {
-                // count = 0;
-                // printf("ISR: Got RMC message\n");
-                // gpsMsg_dumpSentence();
                 // Disable interrutps and process the received NMEA sentence.
                 disable_UART_rx();
                 // Set flag to indicate RMC message is ready
@@ -375,7 +361,7 @@ void gpsMsg_isr(void) {
 *         in the RMC message.
 */
 static bool gpsMsg_checkForRmcDataValid(void) {
-#if 0
+#ifdef SIMULATE_GPS_FIX
     //*******************************************************
     // For Test Only!!!! - Simulate RMC String
     static uint8_t testCount = 0;
@@ -432,7 +418,6 @@ static bool gpsMsg_verifyChecksum(void) {
     // The '*' (0x2A) will be at five characters from the end.
     // An example end of sentence: 0x2A,0x37,0x33,0xD,0xA
     if ((gpsMsgData.isrRxIndex < 20) || (gpsRxBuf[gpsMsgData.isrRxIndex - 5] != '*')) {
-        // printf("\n\n**** INCOMPLETE MESSAGE ****\n\n");
         return false;
     }
 
@@ -441,7 +426,6 @@ static bool gpsMsg_verifyChecksum(void) {
     for (i = 1; i < (gpsMsgData.isrRxIndex - 5); i++) {
         calculatedChecksum ^= gpsRxBuf[i];
     }
-    // printf("Calculated Checksum: 0x%x\n", calculatedChecksum);
 
     // Get the received checksum value as a hex number
     // The Most significant nibble of the checksum is 4 characters from the end.
@@ -449,12 +433,6 @@ static bool gpsMsg_verifyChecksum(void) {
     rxChecksumMSN = asciiToHex(gpsRxBuf[gpsMsgData.isrRxIndex - 4]);
     rxChecksumLSN = asciiToHex(gpsRxBuf[gpsMsgData.isrRxIndex - 3]);
     rxChecksum = (rxChecksumMSN << 4) | rxChecksumLSN;
-    // printf("Received Checksum: 0x%x\n", rxChecksum);
-
-    // Check if they match
-    if (calculatedChecksum != rxChecksum) {
-        // printf("\n\n**** CHECKSUM MISMATCH ****\n\n");
-    }
 
     return (calculatedChecksum == rxChecksum);
 }

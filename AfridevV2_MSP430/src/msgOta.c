@@ -1098,11 +1098,10 @@ static bool otaMsgMgr_processGpsRequest(otaResponse_t *otaRespP) {
     *statusP = 1;
     if (requestType == 0) {
         // Return existing GPS data. Data will be copied to location after status byte
-        gpsMsg_getRmcMessage(responseDataP);
+        gps_getGpsData(responseDataP);
     } else if (requestType == 1) {
         // Schedule a new GPS measurement and message
         msgSched_scheduleGpsMeasurement();
-        msgSched_scheduleGpsLocationMessage();
     } else {
         // Invalid request type
         *statusP = 0xFF;  // failure status

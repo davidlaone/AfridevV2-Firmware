@@ -74,19 +74,19 @@
  * \brief Specify the outpour product ID number that is sent in 
  *        messages.
  */
-#define OUTPOUR_PRODUCT_ID ((uint8_t)0)
+#define AFRIDEV2_PRODUCT_ID ((uint8_t)3)
 
 /**
  * \def FW_VERSION_MAJOR
  * \brief Specify the outpour firmware major version number.
  */
-#define FW_VERSION_MAJOR ((uint8_t)0x03)
+#define FW_VERSION_MAJOR ((uint8_t)0x00)
 
 /**
  * \def FW_VERSION_MINOR
  * \brief Specify the outpour firmware minor version number.
  */
-#define FW_VERSION_MINOR ((uint8_t)0x04)
+#define FW_VERSION_MINOR ((uint8_t)0x02)
 
 /**
  * \def ACTIVATE_REBOOT_KEY
@@ -380,7 +380,7 @@ typedef struct modemCmdReadData_s {
  *        the length of an OTA response message being sent to
  *        the cloud by the unit. It is a constant value. It
  *        consists of the header and the data.  The header is
- *        always 16 bytes and the data is always 32 bytes -
+ *        always 16 bytes and the data is always 112 bytes -
  *        regardless of whether it is all used by the message
  *        sent.  Example OTA Response messages include
  *        OTA_OPCODE_GMT_CLOCKSET, OTA_OPCODE_LOCAL_OFFSET, etc.
@@ -402,7 +402,7 @@ typedef struct modemCmdReadData_s {
  * \brief Define the data length of an OTA response message. The
  *        data follows the header in the message.
  */
-#define OTA_RESPONSE_DATA_LENGTH ((uint8_t)32)
+#define OTA_RESPONSE_DATA_LENGTH ((uint8_t)112)
 
 /**
  * \typedef otaResponse_t
@@ -600,10 +600,11 @@ uint32_t getSecondsSinceBoot(void);
 
 // Watchdog Macros
 // 1 second time out, uses ACLK
-// #define WATCHDOG_TICKLE() (WDTCTL = WDT_ARST_1000)
+#define WATCHDOG_TICKLE() (WDTCTL = WDT_ARST_1000)
+#define WATCHDOG_STOP() (WDTCTL = (WDTPW | WDTHOLD))
+
 // For testing, don't enable watchdog
-#define WATCHDOG_TICKLE() (WDTCTL = WDTPW | WDTHOLD)
-#define WATCHDOG_STOP() (WDTCTL = WDTPW | WDTHOLD)
+// #define WATCHDOG_TICKLE() (WDTCTL = WDTPW | WDTHOLD)
 
 /*******************************************************************************
 * storage.c
@@ -622,6 +623,7 @@ uint16_t storageMgr_getNextDailyLogToTransmit(uint8_t **dataPP);
 void storageMgr_sendDebugDataToUart(void);
 uint8_t storageMgr_getStorageClockInfo(uint8_t *bufP);
 uint8_t storageMgr_getStorageClockHour(void);
+uint8_t storageMgr_getStorageClockMinute(void); 
 uint8_t storageMgr_prepareMsgHeader(uint8_t *dataPtr, uint8_t payloadMsgId);
 uint16_t storageMgr_getMonthlyCheckinMessage(uint8_t **payloadPP);
 uint16_t storageMgr_getActivatedMessage(uint8_t **payloadPP); 
@@ -709,6 +711,7 @@ void gps_stop (void);
 bool gps_isActive(void);
 void gps_sendGpsMessage(void);
 uint16_t gps_getGpsMessage(uint8_t **payloadP);
+uint16_t gps_getGpsData(uint8_t *bufP);
 
 /*******************************************************************************
 * gpsPower.c 

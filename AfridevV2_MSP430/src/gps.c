@@ -106,7 +106,6 @@ void gps_init(void) {
 * \ingroup EXEC_ROUTINE
 */
 void gps_exec(void) {
-    // printf("%s\n", __func__);
     if (gpsData.active) {
         gps_stateMachine();
     }
@@ -137,7 +136,6 @@ void gps_start(void) {
     if (gpsData.active) {
         return;
     }
-    // printf("%s\n", __func__);
     gpsData.active = true;
     gpsData.state = GPS_STATE_POWER_UP;
     gpsData.gpsOnRetryCount = 0;
@@ -154,6 +152,8 @@ void gps_stop(void) {
     gpsPower_powerDownGPS();
     gpsMsg_stop();
     gpsData.active = false;
+    // Always set UART mux for use with modem after GPS is done
+    MODEM_UART_SELECT_ENABLE();
 }
 
 /**
@@ -189,7 +189,6 @@ static void gps_stateMachine(void) {
 
     case GPS_STATE_POWER_UP_WAIT:
         if (gpsPower_isGpsOn()) {
-            // printf("%s: GPS IS UP\n", __func__);
             gpsData.state = GPS_STATE_MSG_RX_START;
         } else if (gpsPower_isGpsOnError()) {
             // Houston - we have a problem
@@ -204,18 +203,14 @@ static void gps_stateMachine(void) {
 
     case GPS_STATE_MSG_RX_WAIT:
         if (gpsMsg_gotRmcMessage()) {
-            // printf("Got RMC Message @ %d\n", sysTime);
             // We have a RMC message available.
             if (gpsMsg_gotDataValidRmcMessage()) {
-                // printf("Got Satellite Fix @ %d\n", sysTime);
                 // The RMC message contains a valid satellite fix. We are done.
                 gpsData.state = GPS_STATE_DONE;
             } else if (GET_ELAPSED_TIME_IN_SEC(gpsData.startGpsTimestamp) > MAX_ALLOWED_GPS_FIX_TIME_IN_SEC) {
-                // printf("TIMEOUT WAITING FOR SATELLITE FIX\n");
                 // Timeout waiting for a satellite fix - so we are done.
                 gpsData.state = GPS_STATE_DONE;
             } else {
-                // printf("Get another RMC message, elapsed: %d\n", GET_ELAPSED_TIME_IN_SEC(gpsData.startGpsTimestamp));
                 // Keep trying for a satellite fix
                 gpsData.state = GPS_STATE_MSG_RX_START;
             }
@@ -239,7 +234,9 @@ static void gps_stateMachine(void) {
     case GPS_STATE_DONE:
         gps_stop();
         gpsData.state = GPS_STATE_IDLE;
-        // exit(0);
+        // Always schedule a GPS message to be sent after the
+        // GPS measurement is complete.
+        msgSched_scheduleGpsLocationMessage();
         break;
     }
 }
@@ -291,6 +288,11 @@ uint16_t gps_getGpsMessage(uint8_t **payloadPP) {
         strcpy((char *)ptr, no_gps_data_string);
         payloadSize += sizeof(no_gps_data_string);
     }
+    // For the GPS message, we always return 128 bytes. This 
+    // includes the 16 byte header and 112 bytes of data payload.
+    // Not all of the data payload will contain GPS data - so junk
+    // is returned for those unused bytes.
+    payloadSize = 128;
     // Assign pointer
     *payloadPP = payloadP;
     // return payload size
