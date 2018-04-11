@@ -1,4 +1,21 @@
 
+Afridev-V2 MSP430G2955 Firmware Release Notes
+Version 0.03
+April 10, 2018
+
+Firmware Changes In This Release:
+
+Add OTA GPS Request Message Support
+====================================
+Implemented logic to support the new GPS Request message. This message is sent by the IoT platform to request that
+the sensor return the last GPS measurment data or to request that the Sensor take a new GPS measurement.
+
+Add Bootloader Support 
+=======================
+Create a new CCS project to support the Bootloader. Also add the image-builder scripts that are used to combine the 
+bootloader hex file with the application hex file. The combined file is used to program the MSP430 flash. The scripts 
+are also used to create the firmware upgrade message that can be sent as an OTA message to the sensor.
+
 
 Afridev-V2 MSP430G2955 Firmware Release Notes
 Version 0.02
