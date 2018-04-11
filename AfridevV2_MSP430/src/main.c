@@ -93,10 +93,10 @@ void sysError(void) {
 //
 //  External ISR prototypes used by ProxyVectorTable
 //
-extern __interrupt void ISR_Timer1_A0(void);
+extern __interrupt void TIMERB0_ISR(void);
+extern __interrupt void ISR_Timer0_A0(void);
 extern __interrupt void USCI0TX_ISR(void);
 extern __interrupt void USCI0RX_ISR(void);
-extern __interrupt void TIMERB0_VECTOR;
 
 /******************************************************************************
  *
@@ -157,7 +157,7 @@ const uint16_t ProxyVectorTable[] =
     0x4030, (uint16_t)Dummy_Isr,           // 0xFFF4 APP_PROXY_VECTOR(9)  WDT
     0x4030, (uint16_t)Dummy_Isr,           // 0xFFF6 APP_PROXY_VECTOR(10) COMP_A
     0x4030, (uint16_t)Dummy_Isr,           // 0xFFF8 APP_PROXY_VECTOR(11) TB0_1
-    0x4030, (uint16_t)TIMERB0_VECTOR,      // 0xFFFA APP_PROXY_VECTOR(12) TB0_0
+    0x4030, (uint16_t)TIMERB0_ISR,         // 0xFFFA APP_PROXY_VECTOR(12) TB0_0
     0x4030, (uint16_t)Dummy_Isr,           // 0xFFFC APP_PROXY_VECTOR(13) NMI
 };
 #endif

@@ -9,9 +9,11 @@
 /*
 *  Note - the timer naming convention is very confusing on the MSP430
 *
-*  For the MSP430G2955, there are three timers on the system:  TimerA0, TimerA1 and Timer B0
+*  For the MSP430G2953, there are three timers on the system:  TimerA0, TimerA1
+*    & TimerB0.  Each timer has three capture & control channels: 0,1 & 2.
 * 
-*  The timers are 16-bit timer/counters, each with three capture/compare registers.
+*  Timer0_A3 and Timer1_A3 are 16-bit timers/counters with three capture/compare registers.
+*  Timer0_B3 is a 16-bit timer/counter with three capture/compare registers.
 * 
 *  Naming Usage:
 *  TimerA0_0, Timer A0, capture control channel 0
@@ -20,25 +22,25 @@
 *  TimerA1_0, Timer A1, capture control channel 0
 *  TimerA1_1, Timer A1, capture control channel 1
 *  TimerA1_2, Timer A1, capture control channel 2
-*  TimerB0_0, Timer B0, capture control channel 0
-*  TimerB0_1, Timer B0, capture control channel 1
-*  TimerB0_2, Timer B0, capture control channel 2
+*  TimerB0_0, Timer B1, capture control channel 0
+*  TimerB0_1, Timer B1, capture control channel 1
+*  TimerB0_2, Timer B1, capture control channel 2
 *
-*  Timer allocation/usage for Outpour APPLICATION:
-*    A0, Capture control channel 0 used for system tick (with ISR, vector = 9 @ 0FFF2h)
-*    A1, Capture control channel 0 used with capacitance reading 
-*    B0, Capture control channel 0 used to time the capacitance reading
+*  Timer allocation/usage for AfridevV2 APPLICATION:
+*    TimerA0_0, Capture control channel 0 used for system tick (with ISR, vector = 9 @ 0FFF2h)
+*    TimerA1_0, Capture control channel 0 used with capacitance reading
+*    TimerB0_0, Capture control channel 0 used to time the capacitance reading (with ISR, vector = 12 @ 0FFFAh)
 *
-*  Timer allocation/usage for Outpour BOOT:
-*    A0, Capture control channel 0 used for system tick (with ISR, vector = 9 @ 0FFF2h)
+*  Timer allocation/usage for AfridevV2 BOOT:
+*    TimerA1_0, Capture control channel 0 used for system tick (with ISR, vector = 1 @ 0FFE2h)
 * 
 * The interrupt vector naming corresponds as follows:
-* TIMER0_A1_VECTOR -> Timer A0, capture/control channel 1, vector  0, 0xFFE0
-* TIMER0_A0_VECTOR -> Timer A0, capture/control channel 0, vector  1, 0xFFE2
-* TIMER1_A1_VECTOR -> Timer A1, capture/control channel 1, vector  8, 0xFFF0
-* TIMER1_A0_VECTOR -> Timer A1, capture/control channel 0, vector  9, 0xFFF2
-* TIMER0_B1_VECTOR -> Timer  B, capture/control channel 1, vector 12, 0xFFF8
-* TIMER0_B0_VECTOR -> Timer  B, capture/control channel 0, vector 13, 0xFFFA
+*  TIMER1_A1_VECTOR, ".int00", 0xFFE0, Timer1_A3, CCR1-2, TA1 
+*  TIMER1_A0_VECTOR, ".int01", 0xFFE2, Timer1_A3, CCR0 
+*  TIMER0_A1_VECTOR, ".int07", 0xFFF0, Timer0_A3, CCR1-2, TA0 
+*  TIMER0_A0_VECTOR, ".int08", 0xFFF2, Timer0_A3, CCR0 
+*  TIMERB1_VECTOR,   ".int11", 0xFFF8, Timer0_B3, CCR1-2, TB0 
+*  TIMERB0_VECTOR,   ".int12", 0xFFFA, Timer0_B3, CCR0 
 * =============================================================================== 
 * From the MSP430 Documentation:
 * 
@@ -49,7 +51,7 @@
 * timer immediately restarts counting from zero.
 * =============================================================================== 
 * Timer Registers for Timer A0 and A1  (x = 0 or 1 accordingly)
-*  TAxCTL - reg to setup timer counting type, clock, etc - CONTROLS ALL OF TIMER 
+*  TAxCTL - reg to setup timer counting type, clock, etc - CONTROLS ALL OF TIMER A1
 *  Capture/Control channel 0
 *  TAxCCR0 - specify the compare count for channel 0
 *  TAxCCTL0 - setup interrupt for channel 0 

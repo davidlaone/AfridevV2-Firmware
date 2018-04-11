@@ -1,7 +1,7 @@
 /** 
  * @file modemMsg.h
  * \n Source File
- * \n MSP430 Firmware
+ * \n AfridevV2 MSP430 Bootloader Firmware
  * 
  * \brief SIM900 modem data definitions.
  */
@@ -10,68 +10,25 @@
 
 /**
  * \typedef MessageType_t
- * \brief Identify the different outgoing messages identifiers. 
+ * \brief Identify the different AfridevV2 outgoing messages 
+ *        identifiers.
  */
 typedef enum messageType {
-    MSG_TYPE_FINAL_ASSEMBLY = 0x00,
-    MSG_TYPE_DAILY_LOG = 0x1,
     MSG_TYPE_OTAREPLY = 0x03,
-    MSG_TYPE_RETRYBYTE = 0x04,
-    MSG_TYPE_CHECKIN = 0x05,
     MSG_TYPE_SOS = 0x06,
-    MSG_TYPE_ACTIVATED = 0x07,
-    MSG_TYPE_GPS_LOCATION = 0x08,
-    // The following are debug messages for use with the PC
-    // data logger.  These messages do not go to the Modem, and
-    // are only sent when the Modem is powered off.
-    MSG_TYPE_DEBUG_PAD_STATS = 0x10,
-    MSG_TYPE_DEBUG_STORAGE_INFO = 0x11,
-    MSG_TYPE_DEBUG_TIME_INFO = 0x12,
-    MSG_TYPE_DEBUG_FLOW_SENSOR_DATA = 0x13
 } MessageType_t;
 
 /**
  * \typedef OtaOpcode_t 
- * \brief Identify each possible incomming OTA opcode.
+ * \brief Identify each possible incoming AfridevV2 OTA opcode.
  */
 typedef enum otaOpcodes_e {
-    OTA_OPCODE_GMT_CLOCKSET = 0x01,
-    OTA_OPCODE_LOCAL_OFFSET = 0x02,
-    OTA_OPCODE_RESET_DATA = 0x03,
-    OTA_OPCODE_RESET_RED_FLAG = 0x04,
-    OTA_OPCODE_ACTIVATE_DEVICE = 0x05,
-    OTA_OPCODE_SILENCE_DEVICE = 0x06,
-    OTA_OPCODE_SET_TRANSMISSION_RATE = 0x07,
-    OTA_OPCODE_RESET_DEVICE = 0x08,
-    OTA_OPCODE_CLOCK_REQUEST = 0x0C,
-    OTA_OPCODE_GPS_REQUEST = 0x0D,
-    OTA_OPCODE_FIRMWARE_UPGRADE = 0x10,
-    OTA_OPCODE_MEMORY_READ = 0x1F,
+    OTA_OPCODE_FIRMWARE_UPGRADE = 0x10
 } OtaOpcode_t;
 
 /**
- * \typedef outpour_modem_command_t
- * \brief These mirror the SIM900 BodyTrace Command Messsage 
- *        Type names, but are put in numerical sequential order
- *        to allow for table indexing of processing function
- *        based on command number (see modemCmd.c).
- */
-typedef enum outpour_modem_command_e {
-    OUTPOUR_M_COMMAND_PING = 0x00,                   /**< PING */
-    OUTPOUR_M_COMMAND_MODEM_INFO = 0x1,              /**< MODEM INFO */
-    OUTPOUR_M_COMMAND_MODEM_STATUS = 0x2,            /**< MODEM STATUS */
-    OUTPOUR_M_COMMAND_MESSAGE_STATUS = 0x3,          /**< MESSAGE STATUS */
-    OUTPOUR_M_COMMAND_SEND_TEST = 0x4,               /**< SEND TEST */
-    OUTPOUR_M_COMMAND_SEND_DATA = 0x5,               /**< SEND DATA */
-    OUTPOUR_M_COMMAND_GET_INCOMING_PARTIAL = 0x6,    /**< GET INCOMING PARTIAL */
-    OUTPOUR_M_COMMAND_DELETE_INCOMING = 0x7,         /**< DELETE INCOMING */
-    OUTPOUR_M_COMMAND_SEND_DEBUG_DATA = 0x8,         /**< SEND DEBUG DATA - FOR OUTPUT INTERNAL DEBUG ONLY */
-    OUTPOUR_M_COMMAND_POWER_OFF = 0x9,               /**< POWER OFF */
-} outpour_modem_command_t;
-
-/**
  * \typedef modem_command_t
- * \brief These are the SIM900 BodyTrace Command Messsage Types
+ * \brief These are the SIM900 BodyTrace Command Message Types
  */
 typedef enum modem_command_e {
     M_COMMAND_PING = 0x00,                    /**< PING */

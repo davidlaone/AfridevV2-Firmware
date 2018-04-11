@@ -1,7 +1,7 @@
 /** 
  * @file modemMgr.c
  * \n Source File
- * \n Afridev1 MSP430 Firmware
+ * \n AfridevV2 MSP430 Bootloader Firmware
  * 
  * \brief High level interface that the message objects
  *        (Storage, FA, OTA) use to transmit and receive
@@ -74,7 +74,7 @@
  * Module Data Definitions
  **************************/
 
-#include "Outpour.h"
+#include "outpour.h"
 
 /**
  * \def MODEM_SHUTDOWN_DELAY_IN_SEC
@@ -82,7 +82,7 @@
  *        modem a power down command to cut the power to the
  *        modem.
  */
-#define MODEM_SHUTDOWN_DELAY_IN_SEC 8
+#define MODEM_SHUTDOWN_DELAY_IN_SEC ((uint16_t)10*SYS_TICKS_PER_SECOND)
 
 /**
  * \typedef mwBatchState_t
@@ -148,7 +148,7 @@ typedef struct mwBatchData_s {
  *        below the stack space.
  */
 #pragma SET_DATA_SECTION(".commbufs")
-uint8_t otaBuf[OTA_PAYLOAD_MAX_RX_READ_LENGTH];  /**< A buffer to hold one OTA message */
+uint8_t otaBuf[OTA_PAYLOAD_BUF_LENGTH];  /**< A buffer to hold one OTA message */
 #pragma SET_DATA_SECTION()
 
 /**
@@ -454,7 +454,7 @@ static void modemMgr_batchWriteStateMachine(void) {
             {
                 modemCmdWriteData_t mcWriteData;
                 memset(&mcWriteData, 0, sizeof(modemCmdWriteData_t));
-                mcWriteData.cmd = OUTPOUR_M_COMMAND_PING;
+                mcWriteData.cmd = M_COMMAND_PING;
                 modemCmd_write(&mcWriteData);
                 // Next state
                 mwBatchData.mwBatchState = MWBATCH_STATE_PING_WAIT;
@@ -492,7 +492,7 @@ static void modemMgr_batchWriteStateMachine(void) {
                     mwBatchData.commError = true;
                 }
                 // If cmd was a get OTA data request, parse and save the data
-                if (mwBatchData.cmdWriteP->cmd == OUTPOUR_M_COMMAND_GET_INCOMING_PARTIAL) {
+                if (mwBatchData.cmdWriteP->cmd == M_COMMAND_GET_INCOMING_PARTIAL) {
                     modemCmdReadData_t readData;
                     modemCmd_read(&readData);
                     parseModemOtaCmdResponse(&readData);
@@ -507,7 +507,7 @@ static void modemMgr_batchWriteStateMachine(void) {
             {
                 modemCmdWriteData_t mcWriteData;
                 memset(&mcWriteData, 0, sizeof(modemCmdWriteData_t));
-                mcWriteData.cmd = OUTPOUR_M_COMMAND_MODEM_STATUS;
+                mcWriteData.cmd = M_COMMAND_MODEM_STATUS;
                 modemCmd_write(&mcWriteData);
 
                 // Next state
@@ -532,7 +532,7 @@ static void modemMgr_batchWriteStateMachine(void) {
             {
                 modemCmdWriteData_t mcWriteData;
                 memset(&mcWriteData, 0, sizeof(modemCmdWriteData_t));
-                mcWriteData.cmd = OUTPOUR_M_COMMAND_MESSAGE_STATUS;
+                mcWriteData.cmd = M_COMMAND_MESSAGE_STATUS;
                 modemCmd_write(&mcWriteData);
 
                 // Next state
@@ -576,7 +576,7 @@ static void modemMgr_shutdownStateMachine(void) {
             {
                 modemCmdWriteData_t modemCmd;
                 memset(&modemCmd, 0, sizeof(modemCmdWriteData_t));
-                modemCmd.cmd = OUTPOUR_M_COMMAND_POWER_OFF;
+                modemCmd.cmd = M_COMMAND_POWER_OFF;
                 modemCmd_write(&modemCmd);
                 // Next state
                 mwBatchData.mmShutdownState = M_SHUTDOWN_STATE_WRITE_CMD_WAIT;
@@ -591,7 +591,7 @@ static void modemMgr_shutdownStateMachine(void) {
             break;
         case M_SHUTDOWN_STATE_WAIT:
             {
-                uint32_t elapsedTimeInSeconds = GET_ELAPSED_TIME_IN_SEC(mwBatchData.shutdownTimestamp);
+                uint32_t elapsedTimeInSeconds = GET_ELAPSED_SYS_TICKS(mwBatchData.shutdownTimestamp);
                 if (elapsedTimeInSeconds > MODEM_SHUTDOWN_DELAY_IN_SEC) {
                     // Next state
                     mwBatchData.mmShutdownState = M_SHUTDOWN_STATE_DONE;
@@ -644,11 +644,10 @@ static void parseModemMsgStatusCmdResponse(modemCmdReadData_t *readDataP) {
 }
 
 /**
-* \brief Parse a modem incoming partial command response.  The 
-*        parital command data is copied from the modemCmd buffer
-*        (which is the ISR RX BUFFER) to the otaResponse buffer
-*        (which is the ota buffer - also known as the shared
-*        buffer).
+* \brief Parse a M_COMMAND_GET_INCOMING_PARTIAL command response
+*        from the modem.  This will be an OTA packet.  Most
+*        commands are very small unless its a firmware upgrade
+*        will will span multiple packets.
 * 
 * @param readDataP Pointer to a modemCmdReadData_t object 
 */
@@ -662,10 +661,10 @@ static void parseModemOtaCmdResponse(modemCmdReadData_t *readDataP) {
         uint16_t lengthInBytes = (readDataP->dataP[4] << 8) | readDataP->dataP[5];
         // bytes 6,7,8,9 = uint32_t dataRemaining (note MSB is first)
         uint16_t remainingInBytes = (readDataP->dataP[8] << 8) | readDataP->dataP[9];
-        if (lengthInBytes > OTA_PAYLOAD_MAX_RX_READ_LENGTH) {
+        if (lengthInBytes > OTA_PAYLOAD_BUF_LENGTH) {
             lengthInBytes = 0;
         }
-        // copy the payload starting at byte offset 10 of the received modem response
+        // copy the payload start at byte offset 10 of the received modem response
         memcpy(&mwBatchData.otaResponse.buf[0], &readDataP->dataP[10], lengthInBytes);
         mwBatchData.otaResponse.lengthInBytes = lengthInBytes;
         mwBatchData.otaResponse.remainingInBytes = remainingInBytes;

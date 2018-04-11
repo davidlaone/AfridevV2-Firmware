@@ -4,24 +4,26 @@
  * \n Outpour MSP430 Firmware
  * 
  * \brief Schedule a message to be sent to the modem. All 
- *        scheduled messages are always sent at 1:00AM. Messages
- *        that are scheduled include:
+ *        scheduled messages are always transmitted at 1:00AM
+ *        (storage clock time). Messages that are scheduled
+ *        include:
  *        \li Activated message
  *        \li Daily Water Log message
  *        \li Monthly Check-In message
  *        \li GPS Location message.
  *
  * \brief Schedule a GPS measurement. The GPS measurement is 
- *        always performed at 12:00AM (if scheduled).
+ *        always performed at 12:30AM (if scheduled).
  *  
  * \note There are two ways to send a message to the modem: 
  *       immediate and scheduled. To send a message immediately,
  *       usd the dataMsgMgr_sendDataMsg function. To schedule a
- *       message to be transmitted at 1:00AM, use the scheduler
- *       API's. The scheduler kicks off the message transmission
- *       session at 1:00AM if there are messages scheduled. The
- *       scheduler calls the dataMsgMgr_startSendingScheduled
- *       function to kick off the transmission session.
+ *       message to be transmitted at 1:00AM (storage clock
+ *       time), use the scheduler API's. The scheduler kicks off
+ *       the message transmission session at 1:00AM if there are
+ *       messages scheduled. The scheduler calls the
+ *       dataMsgMgr_startSendingScheduled function to kick off
+ *       the transmission session.
  */
 
 #include "outpour.h"
@@ -81,6 +83,11 @@ void msgSched_exec(void) {
     if (msgSchedData.msgScheduled) {
         // Get time from the storage module and check against 1:00AM
         if (storageMgr_getStorageClockHour() == 1) {
+            // This should never happen, but check if GPS is active.
+            // If it is active, stop it.
+            if (gps_isActive()) {
+                gps_stop();
+            }
             // Start the transmission cycle
             dataMsgMgr_startSendingScheduled();
             // Clear flag
@@ -90,11 +97,15 @@ void msgSched_exec(void) {
 
     // Check if there a GPS measurement to perform
     if (msgSchedData.performGpsMeasurement) {
-        // Get time from the storage module and check against 12:00AM
-        if (storageMgr_getStorageClockHour() == 0) {
-            // Start a GPS measurement
-            gps_start();
-            msgSchedData.performGpsMeasurement = false;
+        // Get time from the storage module and check against 12:30AM
+        if ((storageMgr_getStorageClockHour() == 0) && (storageMgr_getStorageClockMinute() > 29)){
+            // For safety, make sure modem is not active
+            // This should never happen, but check just in case.
+            if (!modemMgr_isAllocated()) {
+                // Start a GPS measurement
+                gps_start();
+                msgSchedData.performGpsMeasurement = false;
+            }
         }
     }
 }
@@ -184,7 +195,8 @@ void msgSched_scheduleGpsLocationMessage(void) {
 
 /**
 * \brief Schedule a GPS measurement to be performed when the 
-*        Storage clock hour is set to 12:00 AM (i.e. 0 hours).
+*        Storage clock hour is set to 12:30 AM (i.e. 0 hours, 30
+*        minutes).
 */
 void msgSched_scheduleGpsMeasurement(void) {
     msgSchedData.performGpsMeasurement = true;

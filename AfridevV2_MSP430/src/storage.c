@@ -315,21 +315,21 @@ void storageMgr_exec(uint16_t currentFlowRateInMLPerSec) {
     // Note: this function is called every two seconds by the main loop.
     stData.storageTime_seconds += SECONDS_PER_TREND;
 
-    if (stData.storageTime_seconds == TOTAL_SECONDS_IN_A_MINUTE) {
+    if (stData.storageTime_seconds >= TOTAL_SECONDS_IN_A_MINUTE) {
         // Record data
         recordLastMinute();
         // Update time
         stData.storageTime_minutes++;
         stData.storageTime_seconds = 0;
     }
-    if (stData.storageTime_minutes == TOTAL_MINUTES_IN_A_HOUR) {
+    if (stData.storageTime_minutes >= TOTAL_MINUTES_IN_A_HOUR) {
         // Record data
         recordLastHour();
         // Update time
         stData.storageTime_hours++;
         stData.storageTime_minutes = 0;
     }
-    if (stData.storageTime_hours == TOTAL_HOURS_IN_A_DAY) {
+    if (stData.storageTime_hours >= TOTAL_HOURS_IN_A_DAY) {
         // Record data
         // The recordLastDay does a number of house-keeping chores:
         // (1) If the unit is activated, it stores today's water log 
@@ -351,7 +351,7 @@ void storageMgr_exec(uint16_t currentFlowRateInMLPerSec) {
             }
         }
     }
-    if (stData.storageTime_dayOfWeek == TOTAL_DAYS_IN_A_WEEK) {
+    if (stData.storageTime_dayOfWeek >= TOTAL_DAYS_IN_A_WEEK) {
         // Update Time
         stData.storageTime_dayOfWeek = 0;
         stData.storageTime_week++;
@@ -627,12 +627,21 @@ uint8_t storageMgr_getStorageClockInfo(uint8_t *bufP) {
 }
 
 /**
-* \brief Get the storage clock hour.
+* \brief Get the storage clock current hour value.
 * 
 * @return uint8_t Returns 0 - 23. 
 */
 uint8_t storageMgr_getStorageClockHour(void) {
     return stData.storageTime_hours;
+}
+
+/**
+* \brief Get the storage clock current minute value.
+* 
+* @return uint8_t Returns 0 - 59. 
+*/
+uint8_t storageMgr_getStorageClockMinute(void) {
+    return stData.storageTime_minutes;
 }
 
 /**
@@ -659,7 +668,7 @@ uint8_t storageMgr_prepareMsgHeader(uint8_t *dataPtr, uint8_t payloadMsgId) {
     // Add Payload Message ID
     msgHeaderP->payloadMsgId = payloadMsgId;
     // Add Product ID
-    msgHeaderP->productId = OUTPOUR_PRODUCT_ID;
+    msgHeaderP->productId = AFRIDEV2_PRODUCT_ID;
     // Add Time
     msgHeaderP->GMTsecond = tp.second;
     msgHeaderP->GMTminute = tp.minute;
@@ -909,7 +918,6 @@ static void recordLastDay(void) {
         // As part of becoming activated, perform a GPS measurement and send
         // a GPS Location message at the same time the Activated message is sent
         msgSched_scheduleGpsMeasurement();
-        msgSched_scheduleGpsLocationMessage();
         // unit is now activated
         stData.daysActivated++;
         // Save activated liter sum
@@ -1184,7 +1192,7 @@ static void prepareDailyLog(void) {
     msp430Flash_write_bytes((uint8_t *)&(msgHeaderP->payloadMsgId), &temp8, FLASH_WRITE_ONE_BYTE);
 
     // Product ID
-    temp8 = OUTPOUR_PRODUCT_ID;
+    temp8 = AFRIDEV2_PRODUCT_ID;
     msp430Flash_write_bytes((uint8_t *)&(msgHeaderP->productId), &temp8, FLASH_WRITE_ONE_BYTE);
 
     // Time
