@@ -14,7 +14,7 @@
  */
 typedef enum messageType {
     MSG_TYPE_FINAL_ASSEMBLY = 0x00,
-    MSG_TYPE_DAILY_LOG = 0x1,
+    MSG_TYPE_DAILY_LOG = 0x21,
     MSG_TYPE_OTAREPLY = 0x03,
     MSG_TYPE_RETRYBYTE = 0x04,
     MSG_TYPE_CHECKIN = 0x05,
@@ -27,7 +27,6 @@ typedef enum messageType {
     MSG_TYPE_DEBUG_PAD_STATS = 0x10,
     MSG_TYPE_DEBUG_STORAGE_INFO = 0x11,
     MSG_TYPE_DEBUG_TIME_INFO = 0x12,
-    MSG_TYPE_DEBUG_FLOW_SENSOR_DATA = 0x13
 } MessageType_t;
 
 /**
@@ -36,7 +35,6 @@ typedef enum messageType {
  */
 typedef enum otaOpcodes_e {
     OTA_OPCODE_GMT_CLOCKSET = 0x01,
-    OTA_OPCODE_LOCAL_OFFSET = 0x02,
     OTA_OPCODE_RESET_DATA = 0x03,
     OTA_OPCODE_RESET_RED_FLAG = 0x04,
     OTA_OPCODE_ACTIVATE_DEVICE = 0x05,

@@ -17,8 +17,18 @@
  * Module Data Definitions
  **************************/
 
+/**
+ * \def GPS_RX_BUF_SIZE
+ * Specify the length of the receive buffer used to store the 
+ * RMC message from the GPS device 
+ */
 #define GPS_RX_BUF_SIZE 96
 
+/**
+ * \def MAX_RMC_WAIT_TIME_IN_SEC
+ * Amount of time to wait to receive an RMC message. They are 
+ * sent every second from the GPS device. 
+ */
 #define MAX_RMC_WAIT_TIME_IN_SEC (10 * TIME_SCALER)
 
 /**
