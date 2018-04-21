@@ -20,7 +20,7 @@
  * \def TOTAL_WEEKLY_LOGS
  * \brief Specify the number of weekly logs in flash.
  */
-#define TOTAL_WEEKLY_LOGS ((uint8_t)7)
+#define TOTAL_WEEKLY_LOGS ((uint8_t)5)
 
 /**
  * \def WEEKLY_LOG_SIZE
@@ -39,7 +39,7 @@
  * \def TOTAL_HOURS_IN_A_DAY
  * \brief For clarity in the code
  */
-#define TOTAL_HOURS_IN_A_DAY ((uint8_t)24)
+#define TOTAL_HOURS_IN_A_DAY ((uint8_t)24) 
 
 /**
  * \def TOTAL_MINUTES_IN_A_HOUR
@@ -206,10 +206,6 @@ const weeklyLog_t week3Log;
 const weeklyLog_t week4Log;
 #pragma DATA_SECTION(week5Log, ".week5Data")
 const weeklyLog_t week5Log;
-#pragma DATA_SECTION(week6Log, ".week6Data")
-const weeklyLog_t week6Log;
-#pragma DATA_SECTION(week7Log, ".week7Data")
-const weeklyLog_t week7Log;
 
 // Force this table to be located in the .text area
 #pragma DATA_SECTION(weeklyLogAddrTable, ".text")
@@ -219,8 +215,6 @@ static const weeklyLog_t *weeklyLogAddrTable[] = {
     &week3Log,
     &week4Log,
     &week5Log,
-    &week6Log,
-    &week7Log,
 };
 
 /**
@@ -585,17 +579,16 @@ void storageMgr_sendDebugDataToUart(void) {
 
 /**
  *  \brief Set how often to transmit the daily logs (in days).
- *         We currently limit the max rate to 6 weeks worth of
- *         data even though there is storage allocated for 7
+ *         We currently limit the max rate to 4 weeks worth of
+ *         data even though there is storage allocated for 5
  *         weeks of daily logs. That way when the transmission
- *         rate is set to max(6 weeks x 7 days = 42 days) the
+ *         rate is set to max (4 weeks x 7 days = 28 days) the
  *         current week that is collecting data is not one of
  *         the weekly logs that has to be transmitted. It makes
  *         things simpler by not having to worry about the logic
  *         for erasing and preparing the current weekly log
  *         which would contain daily logs that need to be
- *         transmitted first if there were a max of 6 weeks of
- *         storage available.
+ *         transmitted first. 
  */
 void storageMgr_setTransmissionRate(uint8_t transmissionRateInDays) {
     uint8_t maxAllowedDays = (TOTAL_DAYS_IN_A_WEEK * (TOTAL_WEEKLY_LOGS - 1));
