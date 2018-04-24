@@ -4,7 +4,7 @@
  * \n Outpour MSP430 Firmware
  * 
  * \brief Schedule a message to be sent to the modem. All 
- *        scheduled messages are always transmitted at 1:00AM
+ *        scheduled messages are always transmitted at 1:05AM
  *        (storage clock time). Messages that are scheduled
  *        include:
  *        \li Activated message
@@ -18,9 +18,9 @@
  * \note There are two ways to send a message to the modem: 
  *       immediate and scheduled. To send a message immediately,
  *       usd the dataMsgMgr_sendDataMsg function. To schedule a
- *       message to be transmitted at 1:00AM (storage clock
+ *       message to be transmitted at 1:05AM (storage clock
  *       time), use the scheduler API's. The scheduler kicks off
- *       the message transmission session at 1:00AM if there are
+ *       the message transmission session at 1:05AM if there are
  *       messages scheduled. The scheduler calls the
  *       dataMsgMgr_startSendingScheduled function to kick off
  *       the transmission session.
@@ -81,8 +81,8 @@ void msgSched_exec(void) {
 
     // Check if any message is scheduled to be transmitted
     if (msgSchedData.msgScheduled) {
-        // Get time from the storage module and check against 1:00AM
-        if (storageMgr_getStorageClockHour() == 1) {
+        // Get time from the storage module and check against 1:05AM
+        if ((storageMgr_getStorageClockHour() == 1) && (storageMgr_getStorageClockMinute() > 4)) {
             // This should never happen, but check if GPS is active.
             // If it is active, stop it.
             if (gps_isActive()) {
@@ -159,7 +159,7 @@ void msgSched_getNextMessageToTransmit(modemCmdWriteData_t *cmdWriteP) {
 
 /**
 * \brief Schedule the daily water logs to be sent when the 
-*        Storage clock hour is set to 1:00 AM.
+*        Storage clock hour is set to 1:05 AM.
 */
 void msgSched_scheduleDailyWaterLogMessage(void) {
     msgSchedData.msgScheduled = true;
@@ -168,7 +168,7 @@ void msgSched_scheduleDailyWaterLogMessage(void) {
 
 /**
 * \brief Schedule the Activated message to be sent when the 
-*        Storage clock hour is set to 1:00 AM.
+*        Storage clock hour is set to 1:05 AM.
 */
 void msgSched_scheduleActivatedMessage(void) {
     msgSchedData.msgScheduled = true;
@@ -177,7 +177,7 @@ void msgSched_scheduleActivatedMessage(void) {
 
 /**
 * \brief Schedule the Monthly Check-In message to be sent when 
-*        the Storage clock hour is set to 1:00 AM.
+*        the Storage clock hour is set to 1:05 AM.
 */
 void msgSched_scheduleMonthlyCheckInMessage(void) {
     msgSchedData.msgScheduled = true;
@@ -186,7 +186,7 @@ void msgSched_scheduleMonthlyCheckInMessage(void) {
 
 /**
 * \brief Schedule the GPS Location message to be sent when the 
-*        Storage clock hour is set to 1:00 AM.
+*        Storage clock hour is set to 1:05 AM.
 */
 void msgSched_scheduleGpsLocationMessage(void) {
     msgSchedData.msgScheduled = true;

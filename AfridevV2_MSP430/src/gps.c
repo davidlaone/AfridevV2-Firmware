@@ -274,6 +274,7 @@ void gps_sendGpsMessage(void) {
 * @return uint16_t Length of the message in bytes.
 */
 uint16_t gps_getGpsMessage(uint8_t **payloadPP) {
+    uint8_t unusedPayloadSize = 0;
     uint8_t *ptr = NULL;
     // Get the shared buffer (we borrow the ota buffer)
     uint8_t *payloadP = modemMgr_getSharedBuffer();
@@ -290,8 +291,14 @@ uint16_t gps_getGpsMessage(uint8_t **payloadPP) {
     }
     // For the GPS message, we always return 128 bytes. This 
     // includes the 16 byte header and 112 bytes of data payload.
-    // Not all of the data payload will contain GPS data - so junk
-    // is returned for those unused bytes.
+    // Not all of the data payload will contain GPS data.
+    // Zero unused portion of message buffer that will be returned.
+    unusedPayloadSize = 128 - payloadSize;
+    if (unusedPayloadSize <= 112) {
+        ptr = &payloadP[payloadSize];
+        memset(ptr, 0, unusedPayloadSize);
+    }
+    // For the GPS message, we always return 128 bytes. 
     payloadSize = 128;
     // Assign pointer
     *payloadPP = payloadP;
