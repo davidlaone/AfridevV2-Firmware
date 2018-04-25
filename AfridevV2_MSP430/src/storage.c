@@ -20,7 +20,7 @@
  * \def TOTAL_WEEKLY_LOGS
  * \brief Specify the number of weekly logs in flash.
  */
-#define TOTAL_WEEKLY_LOGS ((uint8_t)7)
+#define TOTAL_WEEKLY_LOGS ((uint8_t)5)
 
 /**
  * \def WEEKLY_LOG_SIZE
@@ -39,7 +39,7 @@
  * \def TOTAL_HOURS_IN_A_DAY
  * \brief For clarity in the code
  */
-#define TOTAL_HOURS_IN_A_DAY ((uint8_t)24)
+#define TOTAL_HOURS_IN_A_DAY ((uint8_t)24) 
 
 /**
  * \def TOTAL_MINUTES_IN_A_HOUR
@@ -51,7 +51,7 @@
  * \def TOTAL_SECONDS_IN_A_MINUTE
  * \brief For clarity in the code
  */
-#define TOTAL_SECONDS_IN_A_MINUTE ((uint8_t)60)
+#define TOTAL_SECONDS_IN_A_MINUTE ((uint8_t)60) 
 
 /**
  * \def FLASH_WRITE_ONE_BYTE
@@ -85,28 +85,28 @@
  * \brief If set to non-zero value, then the red flag processing 
  *        function will be called.
  */
-#define DO_RED_FLAG_PROCESSING 0
+#define DO_RED_FLAG_PROCESSING 1
 
 /**
  * \def DO_RED_FLAG_TRANSMISSION
  * \brief If set to non-zero value, then a new red flag 
  *        condition will initiate daily log transmission.
  */
-#define DO_RED_FLAG_TRANSMISSION 0
+#define DO_RED_FLAG_TRANSMISSION 1
 
 /**
  * \typedef dailyLog_t
  * \brief Define the structure of the daily log data that is 
- *        sent inside the daily packet.
+ *        sent inside the daily water log message.
  */
 typedef struct __attribute__((__packed__))dailyLog_s {
     uint16_t litersPerHour[24];      /**< 48, 00-47 */
-    uint16_t padTargetAir[6];        /**< 12, 48-59 */
-    uint16_t padTargetWater[6];      /**< 12, 60-71 */
-    uint16_t padSubmergedCount[6];   /**< 12, 72-83 */
-    uint16_t comparedAverage;        /**< 02, 84-85 */
-    uint16_t unknowns;               /**< 02, 86-87 */
-    uint8_t  redFlag;                /**< 01, 88 */
+    uint16_t totalLiters;            /**< 02, 48-49 */
+    uint16_t averageLiters;          /**< 02, 50-51 */
+    uint8_t  redFlag;                /**< 01, 52    */
+    uint8_t  reserverd;              /**< 01, 53    */
+    uint16_t unknowns;               /**< 02, 54-55 */
+    uint16_t padSubmergedCount[6];   /**< 12, 56-67 */
 } dailyLog_t;
 
 typedef union packetHeader_s {
@@ -206,10 +206,6 @@ const weeklyLog_t week3Log;
 const weeklyLog_t week4Log;
 #pragma DATA_SECTION(week5Log, ".week5Data")
 const weeklyLog_t week5Log;
-#pragma DATA_SECTION(week6Log, ".week6Data")
-const weeklyLog_t week6Log;
-#pragma DATA_SECTION(week7Log, ".week7Data")
-const weeklyLog_t week7Log;
 
 // Force this table to be located in the .text area
 #pragma DATA_SECTION(weeklyLogAddrTable, ".text")
@@ -219,8 +215,6 @@ static const weeklyLog_t *weeklyLogAddrTable[] = {
     &week3Log,
     &week4Log,
     &week5Log,
-    &week6Log,
-    &week7Log,
 };
 
 /**
@@ -585,17 +579,16 @@ void storageMgr_sendDebugDataToUart(void) {
 
 /**
  *  \brief Set how often to transmit the daily logs (in days).
- *         We currently limit the max rate to 6 weeks worth of
- *         data even though there is storage allocated for 7
+ *         We currently limit the max rate to 4 weeks worth of
+ *         data even though there is storage allocated for 5
  *         weeks of daily logs. That way when the transmission
- *         rate is set to max(6 weeks x 7 days = 42 days) the
+ *         rate is set to max (4 weeks x 7 days = 28 days) the
  *         current week that is collecting data is not one of
  *         the weekly logs that has to be transmitted. It makes
  *         things simpler by not having to worry about the logic
  *         for erasing and preparing the current weekly log
  *         which would contain daily logs that need to be
- *         transmitted first if there were a max of 6 weeks of
- *         storage available.
+ *         transmitted first. 
  */
 void storageMgr_setTransmissionRate(uint8_t transmissionRateInDays) {
     uint8_t maxAllowedDays = (TOTAL_DAYS_IN_A_WEEK * (TOTAL_WEEKLY_LOGS - 1));
@@ -814,20 +807,17 @@ static void recordLastMinute(void) {
 /**
  * \brief Write the total liters for the current hour into 
  *        flash. Update the running sum for the total daily
- *        liters.
- * \note The liters for the hour is stored in the current daily
- *       log contained in the current weekly log section.
- * \li The hourly water volume is stored in the log as Total 
+ *        liters. The liters for the hour is stored in the
+ *        current daily log contained in the current weekly log
+ *        section.
+ * \note The hourly water volume is stored in the log as Total 
  *     Milliliters/32
- * \li The daily water volume is stored as whole liters. Two 32
- *     bit shifts are used during the conversion sequence from
- *     Milliliters to Liters. 32*32 = 1024; Liters =
- *     Milliliters/1024. This does produce a small error as
- *     part of the conversion.
  */
 static void recordLastHour(void) {
+
     // Get pointer to today's dailyLog in flash.
     dailyLog_t *dailyLogsP = getDailyLogAddr(stData.curWeeklyLogNum, stData.storageTime_dayOfWeek);
+
     // Get address to liters parameter in the dailyLog
     uint8_t *addr = (uint8_t *)&(dailyLogsP->litersPerHour[stData.storageTime_hours]);
     uint16_t litersForThisHour = 0;
@@ -865,6 +855,7 @@ static void recordLastDay(void) {
     if (stData.daysActivated) {
 
         bool newRedFlagCondition = false;
+        uint16_t dayLiterSum = stData.dayMilliliterSum / 1000;
 
         // Get pointer to today's dailyLog in flash.
         dailyLog_t *dailyLogsP = getDailyLogAddr(stData.curWeeklyLogNum, stData.storageTime_dayOfWeek);
@@ -874,6 +865,9 @@ static void recordLastDay(void) {
 
         // Mark the current daily log as ready in the weekly log meta data.
         markDailyLogAsReady(stData.storageTime_dayOfWeek, stData.curWeeklyLogNum);
+
+        // Write the total liters for the day to the daily log
+        msp430Flash_write_int16((uint8_t *)&(dailyLogsP->totalLiters), dayLiterSum);
 
 #if (DO_RED_FLAG_PROCESSING != 0)
     #if (DO_RED_FLAG_TRANSMISSION != 0)
@@ -889,7 +883,7 @@ static void recordLastDay(void) {
         msp430Flash_write_bytes((uint8_t *)&(dailyLogsP->redFlag), (uint8_t *)&stData.redFlagCondition, FLASH_WRITE_ONE_BYTE);
 
         // Write the red flag threshold value for today to the daily log
-        msp430Flash_write_int16((uint8_t *)&(dailyLogsP->comparedAverage), stData.redFlagThreshTable[stData.storageTime_dayOfWeek]);
+        msp430Flash_write_int16((uint8_t *)&(dailyLogsP->averageLiters), stData.redFlagThreshTable[stData.storageTime_dayOfWeek]);
 
         // Check if its time to transmit data
         // Data is only sent if we are activated and we have reached
@@ -939,29 +933,8 @@ static void writeStatsToDailyLog(void) {
     // Get pointer to today's dailyLog in flash.
     dailyLog_t *dailyLogsP = getDailyLogAddr(stData.curWeeklyLogNum, stData.storageTime_dayOfWeek);
 
-#if 0
-    // daily log layout for reference (see daily log structure)
-    uint16_t litersPerHour[24];      /**< 48, 00-47 */
-    uint16_t padMax[6];              /**< 12, 48-59 */
-    uint16_t padMin[6];              /**< 12, 60-71 */
-    uint16_t padSubmerged[6];        /**< 12, 72-83 */
-    uint16_t comparedAverage;        /**< 02, 84-85 */
-    uint16_t unknowns;               /**< 02, 86-87 */
-    uint8_t  redFlag;                /**< 01, 88 */
-#endif
-
-    // NOTE - consider removing pad stats for Afridev1
-
     // Write per PAD stats to flash
     for (i = 0; i < 6; i++) {
-        addr = 	(uint8_t *)&(dailyLogsP->padTargetAir[i]);
-        u16Val = waterSense_getPadStatsMax((padId_t)i);
-        msp430Flash_write_int16(addr, u16Val);
-
-        addr = 	(uint8_t *)&(dailyLogsP->padTargetWater[i]);
-        u16Val = waterSense_padStatsMin((padId_t)i);
-        msp430Flash_write_int16(addr, u16Val);
-
         addr = 	(uint8_t *)&(dailyLogsP->padSubmergedCount[i]);
         u16Val = waterSense_getPadStatsSubmerged((padId_t)i);
         msp430Flash_write_int16(addr, u16Val);

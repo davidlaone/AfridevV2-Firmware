@@ -439,6 +439,13 @@ bool modemPower_isModemOnError(void);
 *******************************************************************************/
 
 /**
+ * \def SHARED_BUFFER_SIZE
+ * The OTA payload buffer is shared for other things that need a
+ * buffer when the modem OTA processing is not active.  
+ */
+#define SHARED_BUFFER_SIZE OTA_PAYLOAD_MAX_RX_READ_LENGTH
+
+/**
  * \typedef msgHeader_t
  * \brief Define the structure of the header that sits on top of
  *        of all outbound messages.

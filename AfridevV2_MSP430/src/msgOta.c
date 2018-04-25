@@ -109,7 +109,6 @@ static void otaMsgMgr_processOtaMsg(void);
 static uint8_t otaMsgMgr_getOtaLength(void);
 static bool otaMsgMgr_processGmtClocksetPart1(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processGmtClocksetPart2(void);
-static bool otaMsgMgr_processLocalOffset(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processResetData(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processResetRedFlag(otaResponse_t *otaRespP);
 static bool otaMsgMgr_processActivateDevice(otaResponse_t *otaRespP);
@@ -685,153 +684,6 @@ static bool otaMsgMgr_processGmtClocksetPart2(void) {
 }
 
 /**
-* \brief (msgId=0x2) Process the Local Time Offset command. The
-*        values contained in this message represent the GMT time
-*        zone offset for the current time zone. For example, in
-*        Ethiopia the GMT time offset is 3 hours. This means
-*        that when the GMT time is 9:00PM, Ethiopian local time
-*        will be midnight.
-* \brief We want the storage clock midnight to be aligned to the
-*        local time midnight. The unit maintains a GMT clock
-*        (GMT offset = 0). The local timezone midnight for the
-*        next day will occur at GMT midnight of the next day
-*        minus the local GMT time zone offset. For example, for
-*        a local GMT time zone offset of 3 hours (GMT + 3), then
-*        the local time midnight will occur when the unit's GMT
-*        clock time is GMT Midnight minus 3 hours = 24 - 3 =
-*        21 hours (9:00PM).
-* \brief This function makes the calculations to identify what 
-*        GMT time of the next day will correlate to midnight for
-*        local time based on the offset hours, minutes and
-*        seconds received in the message. The storage system is
-*        set to wait and "match" this specified GMT time to
-*        restart collecting data (which will be considered the
-*        storage clock's midnight).
-*  
-* \brief Input OTA parameters
-* \li msg opcode (1 byte)
-* \li msg id     (2 bytes)
-* \li secondsOffset (1 byte)
-* \li minutesOffset (1 byte)
-* \li hours24Offset (1 byte)
-*  
-* \brief Output OTA response
-* \li msg opcode (1 byte)
-* \li msg id     (2 bytes)
-* \li status     (1 byte): 1 = success, 0xFF = failure
-* \li secondsOffset (1 byte)
-* \li minutesOffset (1 byte)
-* \li hours24Offset  (1 byte)
-* \li alignGmtSeconds (1 byte)
-* \li alignGmtMinutes (1 byte)
-* \li alignGmtHours24 (1 byte)
-*
-* \note This function assumes positive GMT offset values (i.e.
-*       GMT + X).  Targeted for Africa regions.
-* 
-* @param otaRespP Pointer to the response data and other info
-*                 received from the modem.
-*
-* @return bool Set to true if a OTA response should be sent
-*/
-static bool otaMsgMgr_processLocalOffset(otaResponse_t *otaRespP) {
-    uint32_t temp32;
-    uint8_t *responseDataP = &otaData.responseBufP[RESPONSE_DATA_OFFSET];
-    uint8_t seconds = 0;
-    uint8_t minutes = 0;
-    uint8_t hours24 = 0;
-
-    // Retrieve the GMT time zone offset for hours, minute and seconds
-    uint8_t secondsOffset = otaRespP->buf[3];  // GMT timezone offset seconds
-    uint8_t minutesOffset = otaRespP->buf[4];  // GMT timezone offset minutes
-    uint8_t hours24Offset = otaRespP->buf[5];  // GMT timezone offset hours
-
-    // Prepare the OTA response
-    prepareOtaResponse(otaRespP->buf[0], otaRespP->buf[1], otaRespP->buf[2], NULL, 0);
-
-    // Check that the numbers are reasonable
-    if ((hours24Offset > 23) || (minutesOffset > 59) || (secondsOffset > 59)) {
-        // Add OTA response data - error status only
-        *responseDataP++ = 0xFF;           // error status
-        *responseDataP++ = secondsOffset;  // sent seconds offset
-        *responseDataP++ = minutesOffset;  // sent minute offset
-        *responseDataP++ = hours24Offset;  // sent hours offset
-    } else {
-        // Do calculations in seconds to identify the GMT time of the
-        // next day when storage clock alignment should take place.
-
-        // Calculate a days worth of seconds.
-        // This will represent midnight of the next day.
-        uint32_t timeInSeconds = 24; // Hours
-        timeInSeconds *= 60;         // Minutes/hour
-        timeInSeconds *= 60;         // Seconds/Minute
-
-        // subtract out GMT offset hours
-        temp32 = SECONDS_PER_HOUR;
-        temp32 *= hours24Offset;
-        timeInSeconds -= temp32;
-
-        // subtract out offset minutes
-        temp32 = SECONDS_PER_MINUTE;
-        temp32 *= minutesOffset;
-        timeInSeconds -= temp32;
-
-        // subtract out offset seconds
-        timeInSeconds -= secondsOffset;
-
-        // Now we have the number of seconds representing the time of the next
-        // day corresponding to the new storage clock midnight. This is equal to
-        // the GMT time midnight minus the offset time sent.
-
-        // Now Convert the time in seconds to an hour:minute:second representation.
-
-        // Determine the number of whole hours contained
-        // within the timeInSeconds
-        hours24 = timeInSeconds / SECONDS_PER_HOUR;
-        // Subtract whole hours from seconds
-        temp32 = SECONDS_PER_HOUR;
-        timeInSeconds -= hours24 * temp32;
-
-        // Determine number of whole minutes in contained
-        // within the remaining timeInSeconds
-        minutes = timeInSeconds / SECONDS_PER_MINUTE;
-        // Subtract whole minutes from seconds
-        temp32 = SECONDS_PER_MINUTE;
-        timeInSeconds -= minutes * temp32;
-
-        // Remaining seconds
-        seconds = timeInSeconds;
-
-        // There is one corner case where hours can be incorrectly set to 24 here.
-        // That happens if an alignment offset of 0 hours, 0 minutes and 0 seconds
-        // is sent.  Just in case - check all three time values.
-        if (hours24 > 23) {
-            hours24 = 0;
-        }
-        if (minutes > 59) {
-            minutes = 0;
-        }
-        if (seconds > 59) {
-            seconds = 0;
-        }
-
-        // Setup the storage system to re-start at the specified GMT time.
-        storageMgr_setStorageAlignmentTime(seconds, minutes, hours24);
-
-        // Add OTA response data
-        *responseDataP++ = 1;              // success status
-        *responseDataP++ = secondsOffset;  // sent seconds offset
-        *responseDataP++ = minutesOffset;  // sent minute offset
-        *responseDataP++ = hours24Offset;  // sent hours offset
-        *responseDataP++ = seconds;        // calculated alignment seconds
-        *responseDataP++ = minutes;        // calculated alignment minutes
-        *responseDataP++ = hours24;        // calculated alignment hours
-    }
-
-    return true;
-}
-
-/**
 * \brief (msgId=0x3) Process the Reset Data OTA command.  
 * 
 * \brief Input OTA parameters
@@ -861,7 +713,8 @@ static bool otaMsgMgr_processResetData(otaResponse_t *otaRespP) {
 }
 
 /**
-* \brief (msgId=0x4) Process the Reset Red Flag OTA command.  
+* \brief (msgId=0x4) Process the Reset Red Flag Alarm OTA
+*        command.
 * 
 * \brief Input OTA parameters
 * \li msg opcode (1 byte)
@@ -879,7 +732,7 @@ static bool otaMsgMgr_processResetData(otaResponse_t *otaRespP) {
 */
 static bool otaMsgMgr_processResetRedFlag(otaResponse_t *otaRespP) {
     uint8_t *responseDataP = &otaData.responseBufP[RESPONSE_DATA_OFFSET];
-    storageMgr_resetRedFlag();
+    storageMgr_resetRedFlagAndMap();
     // Prepare OTA response.  It will be sent after this function exits.
     prepareOtaResponse(otaRespP->buf[0], otaRespP->buf[1], otaRespP->buf[2], NULL, 0);
     // Add response data
@@ -1358,9 +1211,6 @@ static void otaMsgMgr_processOtaMsg(void) {
     switch (opcode) {
     case OTA_OPCODE_GMT_CLOCKSET:
         sendOtaResponse = otaMsgMgr_processGmtClocksetPart1(otaRespP);
-        break;
-    case OTA_OPCODE_LOCAL_OFFSET:
-        sendOtaResponse = otaMsgMgr_processLocalOffset(otaRespP);
         break;
     case OTA_OPCODE_RESET_DATA:
         sendOtaResponse = otaMsgMgr_processResetData(otaRespP);

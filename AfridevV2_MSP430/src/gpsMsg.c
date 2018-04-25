@@ -17,8 +17,18 @@
  * Module Data Definitions
  **************************/
 
+/**
+ * \def GPS_RX_BUF_SIZE
+ * Specify the length of the receive buffer used to store the 
+ * RMC message from the GPS device 
+ */
 #define GPS_RX_BUF_SIZE 96
 
+/**
+ * \def MAX_RMC_WAIT_TIME_IN_SEC
+ * Amount of time to wait to receive an RMC message. They are 
+ * sent every second from the GPS device. 
+ */
 #define MAX_RMC_WAIT_TIME_IN_SEC (10 * TIME_SCALER)
 
 /**
@@ -236,14 +246,17 @@ bool gpsMsg_gotDataValidRmcMessage(void) {
 * @param bufP Buffer to copy the RMC message into.
 * 
 * \ingroup PUBLIC_API
+* 
+* @return uint8_t Returns number of bytes copied to buffer
+*
 */
 uint8_t gpsMsg_getRmcMessage(uint8_t *bufP) {
     uint8_t length = 0;
-    // Make sure length is valid, otherwise cap the the length
-    if (gpsMsgData.rmcMsgLength < GPS_RX_BUF_SIZE) {
-        length = gpsMsgData.rmcMsgLength;
-    } else {
+    // Make sure length is valid, otherwise cap the length
+    if (gpsMsgData.rmcMsgLength > GPS_RX_BUF_SIZE) {
         length = GPS_RX_BUF_SIZE;
+    } else {
+        length = gpsMsgData.rmcMsgLength;
     }
     // Copy the RMC string to the buffer
     memcpy(bufP, gpsRxBuf, length);
@@ -269,10 +282,11 @@ static void gpsMsg_isrRestart(void) {
     gpsMsgData.rmcMsgAvailable = false;
     gpsMsgData.rmcMsgLength = 0;
     gpsMsgData.rmcDataIsValid = false;
-
     gpsMsgData.isrRxIndex = 0;
     gpsMsgData.isrGotStart$ = false;
     gpsMsgData.rmcMsgFromIsrReady = false;
+
+    memset(gpsRxBuf,0,GPS_RX_BUF_SIZE);
 
     // Clear out the UART receive buffer
     garbage = UCA0RXBUF;
