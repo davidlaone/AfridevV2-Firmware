@@ -1,4 +1,24 @@
 
+
+Afridev-V2 MSP430G2955 Firmware Release Notes
+Version 0.04
+April 24, 2018
+
+Firmware Changes In This Release:
+
+Change Daily Water Log Message Format
+======================================
+Rework message to remove some of the pad diagnostic data not relevant anymore.
+
+Change low frequency measurement window
+========================================
+Change low frequency measurement time window from 60 seconds to 20 seconds
+
+Change message transmission time to 1:05 AM
+============================================
+Messages scheduled for transmission will be sent at 1:05 AM instead of 1:00 AM.
+
+
 Afridev-V2 MSP430G2955 Firmware Release Notes
 Version 0.03
 April 10, 2018
