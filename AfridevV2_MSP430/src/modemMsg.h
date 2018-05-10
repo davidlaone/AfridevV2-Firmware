@@ -35,6 +35,7 @@ typedef enum messageType {
  */
 typedef enum otaOpcodes_e {
     OTA_OPCODE_GMT_CLOCKSET = 0x01,
+    OTA_OPCODE_LOCAL_OFFSET = 0x02,
     OTA_OPCODE_RESET_DATA = 0x03,
     OTA_OPCODE_RESET_RED_FLAG = 0x04,
     OTA_OPCODE_ACTIVATE_DEVICE = 0x05,
@@ -43,6 +44,7 @@ typedef enum otaOpcodes_e {
     OTA_OPCODE_RESET_DEVICE = 0x08,
     OTA_OPCODE_CLOCK_REQUEST = 0x0C,
     OTA_OPCODE_GPS_REQUEST = 0x0D,
+    OTA_OPCODE_SET_GPS_MEAS_PARAMS = 0x0E,
     OTA_OPCODE_FIRMWARE_UPGRADE = 0x10,
     OTA_OPCODE_MEMORY_READ = 0x1F,
 } OtaOpcode_t;

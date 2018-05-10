@@ -213,7 +213,7 @@ typedef enum padId_e {
 } padId_t;
 
 // Give names to the various port pin numbers
-#define VBAT_GND BIT1		 // Pin 1.1, Output 
+#define VBAT_GND BIT1		 // Pin 1.1, Output
 #define GSM_DCDC BIT2		 // Pin 1.2, Output
 #define _1V8_EN BIT3		 // Pin 1.3, Output
 #define GSM_INT BIT4		 // Pin 1.4, Input
@@ -324,8 +324,8 @@ unsigned int gen_crc16(const unsigned char *data, unsigned int size);
 unsigned int gen_crc16_2buf(const unsigned char *data1, unsigned int size1, const unsigned char *data2, unsigned int size2);
 uint32_t timeInSeconds(uint8_t hours, uint8_t minutes, uint8_t seconds);
 void calcTimeDiffInSeconds(timeCompare_t *timeCompareP);
-void initApplicationRecord(void);
-bool checkForApplicationRecord(void);
+void reverseEndian32(uint32_t *valP);
+void reverseEndian16(uint16_t *valP);
 
 /*******************************************************************************
 * modemCmd.h
@@ -380,7 +380,7 @@ typedef struct modemCmdReadData_s {
  *        the length of an OTA response message being sent to
  *        the cloud by the unit. It is a constant value. It
  *        consists of the header and the data.  The header is
- *        always 16 bytes and the data is always 112 bytes -
+ *        always 16 bytes and the data is always 32 bytes -
  *        regardless of whether it is all used by the message
  *        sent.  Example OTA Response messages include
  *        OTA_OPCODE_GMT_CLOCKSET, OTA_OPCODE_LOCAL_OFFSET, etc.
@@ -402,7 +402,7 @@ typedef struct modemCmdReadData_s {
  * \brief Define the data length of an OTA response message. The
  *        data follows the header in the message.
  */
-#define OTA_RESPONSE_DATA_LENGTH ((uint8_t)112)
+#define OTA_RESPONSE_DATA_LENGTH ((uint8_t)32)
 
 /**
  * \typedef otaResponse_t
@@ -621,7 +621,7 @@ void storageMgr_exec(uint16_t currentFlowRateInSecML);
 void storageMgr_overrideUnitActivation(bool flag);
 uint16_t storageMgr_getDaysActivated(void);
 void storageMgr_resetRedFlag(void);
-bool storageMgr_getRedFlagConditionStatus (void);
+bool storageMgr_getRedFlagConditionStatus(void);
 void storageMgr_resetRedFlagAndMap(void);
 void storageMgr_resetWeeklyLogs(void);
 void storageMgr_setStorageAlignmentTime(uint8_t alignSecond, uint8_t alignMinute, uint8_t alignHour24);
@@ -630,10 +630,10 @@ uint16_t storageMgr_getNextDailyLogToTransmit(uint8_t **dataPP);
 void storageMgr_sendDebugDataToUart(void);
 uint8_t storageMgr_getStorageClockInfo(uint8_t *bufP);
 uint8_t storageMgr_getStorageClockHour(void);
-uint8_t storageMgr_getStorageClockMinute(void); 
+uint8_t storageMgr_getStorageClockMinute(void);
 uint8_t storageMgr_prepareMsgHeader(uint8_t *dataPtr, uint8_t payloadMsgId);
 uint16_t storageMgr_getMonthlyCheckinMessage(uint8_t **payloadPP);
-uint16_t storageMgr_getActivatedMessage(uint8_t **payloadPP); 
+uint16_t storageMgr_getActivatedMessage(uint8_t **payloadPP);
 
 /*******************************************************************************
 * waterSense.c
@@ -706,17 +706,16 @@ void msgSched_scheduleActivatedMessage(void);
 void msgSched_scheduleMonthlyCheckInMessage(void);
 void msgSched_scheduleGpsLocationMessage(void);
 void msgSched_scheduleGpsMeasurement(void);
-void msgSched_getNextMessageToTransmit(modemCmdWriteData_t *cmdWriteP); 
+void msgSched_getNextMessageToTransmit(modemCmdWriteData_t *cmdWriteP);
 
 /*******************************************************************************
 * gps.c 
 *******************************************************************************/
 void gps_init(void);
 void gps_exec(void);
-void gps_start (void);
-void gps_stop (void);
+void gps_start(void);
+void gps_stop(void);
 bool gps_isActive(void);
-void gps_sendGpsMessage(void);
 uint16_t gps_getGpsMessage(uint8_t **payloadP);
 uint16_t gps_getGpsData(uint8_t *bufP);
 
@@ -734,15 +733,28 @@ uint16_t gpsPower_getGpsOnTimeInSecs(void);
 /*******************************************************************************
 * gpsMsg.c 
 *******************************************************************************/
+
+typedef struct __attribute__((__packed__))gpsReportData_s {
+    uint8_t hours;
+    uint8_t minutes;
+    int32_t latitude;
+    int32_t longitude;
+    uint8_t fixQuality;
+    uint8_t numOfSats;
+    uint8_t hdop;
+    uint8_t reserved;
+    uint16_t fixTimeInSecs;
+}gpsReportData_t;
+
 void gpsMsg_init(void);
 void gpsMsg_exec(void);
 bool gpsMsg_start(void);
 void gpsMsg_stop(void);
 bool gpsMsg_isActive(void);
 bool gpsMsg_isError(void);
-bool gpsMsg_gotRmcMessage(void);
-uint8_t gpsMsg_getRmcMesssageLength(void);
-bool gpsMsg_gotDataValidRmcMessage(void);
-uint8_t gpsMsg_getRmcMessage(uint8_t *bufP);
+bool gpsMsg_gotGgaMessage(void);
+bool gpsMsg_gotValidGpsFix(void);
 void gpsMsg_isr(void);
+uint8_t gpsMsg_getGgaParsedData(uint8_t *bufP);
+void gpsMsg_setMeasCriteria(uint8_t numSats, uint8_t hdop, uint16_t minMeasTime);
 

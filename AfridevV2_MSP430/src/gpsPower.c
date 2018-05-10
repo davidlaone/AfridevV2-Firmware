@@ -57,6 +57,7 @@ typedef struct gpsPowerData_s {
     bool active;
     gpsPowerState_t state;
     sys_tick_t startTimestamp;
+    uint16_t onTime;
     bool gpsUp;
     bool gpsUpError;
     int retryCount;
@@ -165,9 +166,7 @@ bool gpsPower_isGpsOnError(void) {
 * \ingroup PUBLIC_API
 */
 uint16_t gpsPower_getGpsOnTimeInSecs(void) {
-    sys_tick_t onTime = GET_ELAPSED_TIME_IN_SEC(gpsPowerData.startTimestamp);
-    uint16_t onTime16 = onTime;
-    return onTime16;
+    return gpsPowerData.onTime;
 }
 
 /*************************
@@ -181,7 +180,7 @@ uint16_t gpsPower_getGpsOnTimeInSecs(void) {
 */
 static void gpsPower_stateMachine(void) {
 
-    volatile sys_tick_t onTime = GET_ELAPSED_TIME_IN_SEC(gpsPowerData.startTimestamp);
+    gpsPowerData.onTime = GET_ELAPSED_TIME_IN_SEC(gpsPowerData.startTimestamp);
 
     switch (gpsPowerData.state) {
 
@@ -194,21 +193,21 @@ static void gpsPower_stateMachine(void) {
         break;
 
     case GPS_POWERUP_STATE_ENABLE_1_8V:
-        if (onTime >= (2 * TIME_SCALER)) {
+        if (gpsPowerData.onTime >= (2 * TIME_SCALER)) {
             GPS_1_8V_ENABLE();
             gpsPowerData.state = GPS_POWERUP_STATE_GPS_ON_OFF_HIGH;
         }
         break;
 
     case GPS_POWERUP_STATE_GPS_ON_OFF_HIGH:
-        if (onTime >= (6 * TIME_SCALER)) {
+        if (gpsPowerData.onTime >= (6 * TIME_SCALER)) {
             GPS_ON_OFF_HIGH();
             gpsPowerData.state = GPS_POWERUP_STATE_GPS_ON_OFF_LOW;
         }
         break;
 
     case GPS_POWERUP_STATE_GPS_ON_OFF_LOW:
-        if (onTime >= (8 * TIME_SCALER)) {
+        if (gpsPowerData.onTime >= (8 * TIME_SCALER)) {
             GPS_ON_OFF_LOW();
             gpsPowerData.state = GPS_POWERUP_STATE_LOOK_FOR_SYSTEM_ON;
         }
