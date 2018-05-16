@@ -118,15 +118,27 @@ __interrupt void Dummy_Isr(void) {
 /**
  * \var ProxyVectorTable
  *
- * \brief This is a "proxy" interrupt table which is used by the
- *         bootloader to jump to each interrupt routine in the
- *         application.  This technique is based on a TI
- *         bootloader design.  Please see document SLAA600A for
- *         a description of this scheme.  Note that if an
- *         interrupt vector is not used by the application, the
- *         Dummy_Isr function pointer is used.  Currently the
- *         only interrupts used by the application are the
- *         A0 timer, B0 timer and UART rx/tx.
+ * \brief This is a "proxy" interrupt table which is used to
+ *         "redirect" MSP430 interrupt vectors to the
+ *         appropriate interrupt routines within the Application
+ *         code. This technique is based on a TI bootloader
+ *         design. Please see document SLAA600A for a
+ *         description of this scheme. Note that if an interrupt
+ *         vector is not used by the application, the Dummy_Isr
+ *         function pointer is used. Currently the only
+ *         interrupts used by the application are the A0 timer,
+ *         B0 timer and UART rx/tx.
+ *
+ *  \brief The MSP430 uses dedicated hardware interrupt vectors.
+ *         The CPU grabs the address at the vector location and
+ *         jumps to it. Because these locations are fixed
+ *         according to the CPU design, a proxy method must be
+ *         used so that the Application can use interrupts based
+ *         on its own needs. Each vector in the standard MSP430
+ *         interrupt vector table is setup so that it points to
+ *         the locations specified in this "proxy" table. The
+ *         entries in this table contains a branch instruction
+ *         to the specific application interrupt handler.
  *
  * \brief Some details about the proxy table;
  * \li It always resides in the same location as specified in
