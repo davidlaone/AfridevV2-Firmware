@@ -87,7 +87,7 @@ else:
 # shutil.copyfileobj(open(InputBootTxtFileName,'rb'), destination)
 # destination.close()
 
-# Create a regex to ignore any line start with a "q".
+# Create a regex to ignore any line starting with a "q".
 reFilterTxtFile = re.compile("^[^q]")
 # Open the rom file and get rid of any non-code lines.
 txtFileString = ""

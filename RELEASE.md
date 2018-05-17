@@ -1,4 +1,18 @@
 
+Afridev-V2 MSP430G2955 Firmware Release Notes
+Version 0.05
+May 16, 2018
+
+Firmware Changes In This Release:
+
+Change GPS Location Processing
+===============================
+Now look for and parse the GGA message.
+Add new GPS parsing module (minmea.c/minmea.h).
+Change the way a valid GPS measurement fix is identified.
+Add new OTA message: Set GPS Measurement Criteria (0xE).
+Change the format of the GPS data that is returned in the GPS Location Message.
+
 
 Afridev-V2 MSP430G2955 Firmware Release Notes
 Version 0.04

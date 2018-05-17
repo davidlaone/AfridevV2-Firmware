@@ -18,6 +18,8 @@
 * \brief Utility function to calculate a 16 bit CRC on data in a
 *        buffer.
 * 
+* \ingroup PUBLIC_API
+* 
 * @param data Pointer to the data buffer to calculate the CRC
 *             over
 * @param size Length of the data in bytes to calculate over.
@@ -69,6 +71,8 @@ unsigned int gen_crc16(const unsigned char *data, unsigned int size) {
 *        located in two buffers. The first buffer is most likely
 *        the opcode buffer, and the second buffer is the data
 *        buffer.
+* 
+* \ingroup PUBLIC_API
 * 
 * @param data1 Pointer to first buffer
 * @param size1 Size of data in bytes for first buffer
@@ -136,3 +140,36 @@ unsigned int gen_crc16_2buf(const unsigned char *data1, unsigned int size1, cons
     return crc;
 }
 
+/**
+* \brief Reverse the byte order of a 32 bit value. Result is put 
+*        into the pointer passed in (i.e. done in place).
+* 
+* \ingroup PUBLIC_API
+* 
+* @param valP The 32 bit value to byte reverse
+*/
+void reverseEndian32(uint32_t *valP) {
+    uint32_t  inVal = *valP;
+    char *inValP = (char *)&inVal;
+    char *outValP = (char *)valP;
+    outValP[0] = inValP[3];
+    outValP[1] = inValP[2];
+    outValP[2] = inValP[1];
+    outValP[3] = inValP[0];
+}
+
+/**
+* \brief Reverse the byte order of a 16 bit value. Result is put
+*        into the pointer passed in (i.e. done in place).
+* 
+* \ingroup PUBLIC_API
+* 
+* @param valP The 16 bit value to byte reverse
+*/
+void reverseEndian16(uint16_t *valP) {
+    uint16_t  inVal = *valP;
+    char *inValP = (char *)&inVal;
+    char *outValP = (char *)valP;
+    outValP[0] = inValP[1];
+    outValP[1] = inValP[0];
+}

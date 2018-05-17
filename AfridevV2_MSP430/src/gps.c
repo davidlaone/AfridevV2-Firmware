@@ -3,8 +3,8 @@
  * \n Source File
  * \n Outpour MSP430 Firmware
  * 
- * \brief GPS module responsible for controlling the GPS power 
- *        and message modules.
+ * \brief GPS module responsible for controlling the GPS power
+ *        (gpsPower.c) and GPS message (gpsMsg.c) modules.
  *
  * \brief When the Start GPS function is called, it will power
  *        on the GPS device and wait for a valid satellite fix.
@@ -15,11 +15,18 @@
  *  
  * \brief The gps_start function should be called from the upper
  *        layers to perform GPS processing. After this module
- *        has completed its GPS processing, the last valid RMC
- *        string can be retrieved using the API from the gpsMsg
- *        module. Regardless of whether the GPS was able to
- *        determine a satellite fix, the last RMC message is
- *        saved by the gpsMsg module for return to the cloud.
+ *        has completed its GPS processing, the last valid GGA 
+ *        information can be retrieved using the API from
+ *        the gpsMsg module. Regardless of whether the GPS was
+ *        able to determine a satellite fix, the last GGA
+ *        information is saved by the gpsMsg module for return
+ *        to the cloud.
+ *  
+ * \brief The GPS device will stay powered on until the criteria
+ *        for a good location fix is met or the maximum on-time
+ *        occurs. There are three criteria parameters: Minimum
+ *        Number of satellites, Maximum HDOP threshold and
+ *        Minimum on time.
  */
 
 #include "outpour.h"
@@ -33,12 +40,12 @@
  * Max time to have the GPS device on waiting for a satellite 
  * fix. 
  */
-#define MAX_ALLOWED_GPS_FIX_TIME_IN_SEC ((10*60)*TIME_SCALER)
+#define MAX_ALLOWED_GPS_FIX_TIME_IN_SEC ((15*60)*TIME_SCALER)
 
 /**
  * \def MAX_GPS_RETRY_ON_ERROR
  * If an error occurs powering on the GPS device or a timeout 
- * occurs waiting for a RMC message, how many times the state 
+ * occurs waiting for a GGA message, how many times the state 
  * machine will retry to get a valid satellite fix. 
  */
 #define MAX_GPS_RETRY_ON_ERROR 4
@@ -78,8 +85,6 @@ typedef struct gpsData_s {
  * \brief Declare the object that contains the module data.
  */
 gpsData_t gpsData;
-
-static const char no_gps_data_string[] = "NO DATA\n";
 
 /*************************
  * Module Prototypes
@@ -121,11 +126,18 @@ void gps_exec(void) {
 *  
 * \note This function should be called from the upper layers to 
 *       perform GPS processing. After this module has completed
-*       its GPS processing, the last valid RMC string can be
-*       retrieved using the API from the gpsMsg module.
-*       Regardless of whether the GPS was able to determine a
-*       satellite fix, the last RMC message is saved by the
-*       gpsMsg module for return to the cloud.
+*       its GPS processing, the data from the last received GGA
+*       sentence information can be retrieved using the API from
+*       the gpsMsg module. Regardless of whether the GPS was
+*       able to determine a satellite fix, the last GGA sentence
+*       info is saved by the gpsMsg module for return to the
+*       cloud.
+*  
+* \brief The GPS measurement will continue until the criteria 
+*        for a good location fix is met or the maximum on-time
+*        occurs. There are three criteria parameters: Minimum
+*        Number of satellites, Maximum HDOP threshold and
+*        Minimum on time.
 * 
 * @return bool Returns true if processing was started. Returns 
 *         false if the processing had already been started.
@@ -202,10 +214,10 @@ static void gps_stateMachine(void) {
         break;
 
     case GPS_STATE_MSG_RX_WAIT:
-        if (gpsMsg_gotRmcMessage()) {
-            // We have a RMC message available.
-            if (gpsMsg_gotDataValidRmcMessage()) {
-                // The RMC message contains a valid satellite fix. We are done.
+        if (gpsMsg_gotGgaMessage()) {
+            // We have a GGA message available.
+            if (gpsMsg_gotValidGpsFix()) {
+                // The GGA message data has met the criteria for a good fix. We are done.
                 gpsData.state = GPS_STATE_DONE;
             } else if (GET_ELAPSED_TIME_IN_SEC(gpsData.startGpsTimestamp) > MAX_ALLOWED_GPS_FIX_TIME_IN_SEC) {
                 // Timeout waiting for a satellite fix - so we are done.
@@ -242,31 +254,11 @@ static void gps_stateMachine(void) {
 }
 
 /**
-* \brief Utility function to send the GPS message to the modem.
-*/
-void gps_sendGpsMessage(void) {
-    uint8_t *ptr = NULL;
-    // Get the shared buffer (we borrow the ota buffer)
-    uint8_t *payloadP = modemMgr_getSharedBuffer();
-    // Fill in the buffer with the standard message header
-    uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_GPS_LOCATION);
-    // Add the GPS data if available
-    ptr = &payloadP[payloadSize];
-    if (gpsMsg_gotRmcMessage()) {
-        payloadSize += gpsMsg_getRmcMessage(ptr);
-    } else {
-        // If a RMC string is not available, put the default no-data string.
-        strcpy((char *)ptr, no_gps_data_string);
-        payloadSize += sizeof(no_gps_data_string);
-    }
-    // Initiate sending the GPS message
-    dataMsgMgr_sendDataMsg(MSG_TYPE_GPS_LOCATION, payloadP, payloadSize);
-}
-
-/**
 * \brief Build the GPS Location message for transmission. The 
 *        shared buffer is used to hold the message. The standard
-*        msg header is added first followed by the GPS data.
+*        msg header is added first followed by the GPS data. See
+*        the gpsMsg_getGgaParsedData for a description of how
+*        the GPA data is stored in the payload buffer.
 * 
 * @param payloadPP Pointer to fill in with the address of the 
 *                  message to send.
@@ -274,7 +266,6 @@ void gps_sendGpsMessage(void) {
 * @return uint16_t Length of the message in bytes.
 */
 uint16_t gps_getGpsMessage(uint8_t **payloadPP) {
-    uint8_t unusedPayloadSize = 0;
     uint8_t *ptr = NULL;
     // Get the shared buffer (we borrow the ota buffer)
     uint8_t *payloadP = modemMgr_getSharedBuffer();
@@ -282,24 +273,8 @@ uint16_t gps_getGpsMessage(uint8_t **payloadPP) {
     uint8_t payloadSize = storageMgr_prepareMsgHeader(payloadP, MSG_TYPE_GPS_LOCATION);
     // Add the GPS data if available
     ptr = &payloadP[payloadSize];
-    if (gpsMsg_gotRmcMessage()) {
-        payloadSize += gpsMsg_getRmcMessage(ptr);
-    } else {
-        // If a RMC string is not available, put the default no-data string.
-        strcpy((char *)ptr, no_gps_data_string);
-        payloadSize += sizeof(no_gps_data_string);
-    }
-    // For the GPS message, we always return 128 bytes. This 
-    // includes the 16 byte header and 112 bytes of data payload.
-    // Not all of the data payload will contain GPS data.
-    // Zero unused portion of message buffer that will be returned.
-    unusedPayloadSize = 128 - payloadSize;
-    if (unusedPayloadSize <= 112) {
-        ptr = &payloadP[payloadSize];
-        memset(ptr, 0, unusedPayloadSize);
-    }
-    // For the GPS message, we always return 128 bytes. 
-    payloadSize = 128;
+    // Retrieve the GPS data
+    payloadSize += gpsMsg_getGgaParsedData(ptr);
     // Assign pointer
     *payloadPP = payloadP;
     // return payload size
@@ -307,25 +282,19 @@ uint16_t gps_getGpsMessage(uint8_t **payloadPP) {
 }
 
 /**
-* \brief Copy the last RMC message that was received into the 
-*        buffer. If there was not a RMC message received, then
-*        return the string "NO DATA". Copies at most 96 bytes
-*        into ther buffer. The data is always a NULL terminated
-*        ASCII string.
+* \brief Copy the data from the last parsed GPS GGA sentence 
+*        that was received into the buffer. See the
+*        gpsMsg_getGgaParsedData for a description of how the
+*        GPA data is stored in the buffer.
 * 
-* @param bufP Buffer to copy the RMC message string into.
+* @param bufP Buffer to copy the GPS data into.
 * 
 * @return uint16_t The number of bytes copied.
 */
 uint16_t gps_getGpsData(uint8_t *bufP) {
     uint8_t length;
-    if (gpsMsg_gotRmcMessage()) {
-        length = gpsMsg_getRmcMessage(bufP);
-    } else {
-        // If a RMC string is not available, put the default no-data string.
-        strcpy((char *)bufP, no_gps_data_string);
-        length = sizeof(no_gps_data_string);
-    }
+    // Retrieve the GPS data
+    length = gpsMsg_getGgaParsedData(bufP);
     // return length of data put in the buffer
     return length;
 }

@@ -7,47 +7,79 @@
  *        GPS messages (from the UART).
  */
 
-// Example valid RMC message
-// $GPRMC,020730.000,A,3716.1771,N,12156.0343,W,0.00,73.54,260218,,,A*58
-// $GPRMC,051506.000,A,3716.1770,N,12156.0483,W,0.13,213.58,180318,,,A*7B
+// Example valid GGA message
+// $GPGGA,220301.000,3716.1823,N,12156.0250,W,1,07,2.1,58.6,M,-25.8,M,,0000*5C
 
 #include "outpour.h"
+#include "minmea.h"
 
 /***************************
  * Module Data Definitions
  **************************/
 
 /**
+ * \def GPS_MAX_SENTENCE_LENGTH
+ * Max GPS message that should ever occur (based on NMEA 
+ * standard) 
+ */
+#define GPS_MAX_SENTENCE_LENGTH ((uint8_t)83)
+
+/**
+ * \def GPS_DEFAULT_MIN_SATS_FOR_FIX
+ * Minimum number of satellites required to pass fix test
+ */
+#define GPS_DEFAULT_MIN_SATS_FOR_FIX ((uint8_t)6)
+
+/**
+ * \def GPS_DEFAULT_MAX_HDOP_FOR_FIX
+ * Max HDOP value allowed to pass fix test
+ */
+#define GPS_DEFAULT_MAX_HDOP_FOR_FIX ((uint8_t)30)
+
+/**
+ * \def GPS_DEFAULT_MIN_TIME_FOR_FIX
+ * Minimum on-time allowed to pass fix test
+ */
+#define GPS_DEFAULT_MIN_SECONDS_FOR_FIX ((uint16_t)5*60)
+
+/**
  * \def GPS_RX_BUF_SIZE
  * Specify the length of the receive buffer used to store the 
- * RMC message from the GPS device 
+ * GGA message from the GPS device 
  */
 #define GPS_RX_BUF_SIZE 96
 
 /**
- * \def MAX_RMC_WAIT_TIME_IN_SEC
- * Amount of time to wait to receive an RMC message. They are 
+ * \def MAX_GGA_WAIT_TIME_IN_SEC
+ * Amount of time to wait to receive an GGA message. They are 
  * sent every second from the GPS device. 
  */
-#define MAX_RMC_WAIT_TIME_IN_SEC (10 * TIME_SCALER)
+#define MAX_GGA_MSG_WAIT_TIME_IN_SEC (10 * TIME_SCALER)
 
 /**
  * \typedef gps_data_t
  * Structure containing module data
  */
 typedef struct gpsMsgdata_s {
-    bool busy;                      /**< Flag to indicate module is waiting for a RMC msg */
+    bool busy;                      /**< Flag to indicate module is waiting for a GGA msg */
 
-    bool rmcMsgAvailable;           /**< Flag to indicate a valided RMC msg is ready */
-    uint8_t rmcMsgLength;           /**< The length of the validated RMC msg */
-    bool rmcDataIsValid;            /**< We have a valid satellite location fix */
+    bool ggaMsgAvailable;           /**< Flag to indicate a valid GGA msg is ready */
+    uint8_t ggaMsgLength;           /**< The length of the GGA msg */
+    bool gpsFixIsValid;             /**< We have a valid satellite location fix */
+    sys_tick_t measTime;            /**< Time we started the measurement session */
 
-    sys_tick_t waitForRmcTimestamp; /**< The time we we started waiting for an RMC msg */
-    bool noRmcMsgError;             /**< Flag indicating timeout occurred waiting for RMC msg */
+    sys_tick_t waitForGgaTimestamp; /**< The time we we started waiting for an GGA msg */
+    bool noGgaMsgError;             /**< Flag indicating timeout occurred waiting for GGA msg */
 
-    bool rmcMsgFromIsrReady;        /**< ISR flag to indicate an RMC msg has been received */
-    uint8_t isrRxIndex;             /**< ISR index into receive buffer */
+    bool ggaMsgFromIsrReady;        /**< ISR flag to indicate an GGA msg has been received */
+    uint8_t isrRxIndex;             /**< Current ISR index into receive buffer */
     bool isrGotStart$;              /**< ISR processing flag that we got a '$' character */
+
+    struct minmea_sentence_gga frame; /**< Container to hold the parsed GGA sentence (using minmea) */
+
+    uint8_t requiredNumSats;        /**< Required minimum number of satellites for fix criteria */
+    uint8_t requiredMaxHdop;        /**< Required max hdop value for fix criteria (x < hdop) to pass */
+    uint16_t requiredMinTimeInSeconds; /**< Required min time value for fix criteria (x > time) to pass */
 
 } gpsMsgData_t;
 
@@ -72,19 +104,21 @@ char gpsRxBuf[GPS_RX_BUF_SIZE];
 */
 gpsMsgData_t gpsMsgData;
 
+
 /**
-* \var gnrmc_match_template
-* Used to look for the RMC ASCII letters in a NMEA message 
+* \var gga_match_template
+* Used to look for the GGA ASCII letters in a NMEA message 
 * sentence.
 */
-static const uint8_t gnrmc_match_template[] = { '$', 'G', 'P', 'R', 'M', 'C' };
+static const uint8_t gga_match_template[] = { '$', 'G', 'P', 'G', 'G', 'A' };
 
 #ifdef SIMULATE_GPS_FIX
 /**
-* \var rmcTestString
+* \var ggaTestString
 * Used for testing only. Mimic a valid RMC sentance.
 */
-static const char rmcTestString[] =  "$GPRMC,051506.000,A,3716.1770,N,12156.0483,W,0.13,213.58,180318,,,A*7B";
+static const char ggaTestString[] =
+   "$GPGGA,220301.000,3716.1823,N,12156.0250,W,1,07,2.1,58.6,M,-25.8,M,,0000*5C";
 #endif
 
 /*************************
@@ -92,13 +126,10 @@ static const char rmcTestString[] =  "$GPRMC,051506.000,A,3716.1770,N,12156.0483
  ************************/
 
 static void gpsMsg_isrRestart(void);
-static void gpsMSg_processRmcSentence(void);
+static void gpsMSg_processGgaSentence(void);
 static bool gpsMsg_verifyChecksum(void);
 static uint8_t asciiToHex(uint8_t asciiByte);
-static bool gpsMsg_matchRmc(void);
-static bool gpsMsg_checkForRmcDataValid(void);
-// static void gpsMsg_dumpSentence(void);
-// static void gpsMsg_isr(char rxByte);
+static bool gpsMsg_matchGga(void);
 
 static void enable_UART_tx(void);
 static void enable_UART_rx(void);
@@ -117,6 +148,10 @@ static void disable_UART_rx(void);
 void gpsMsg_init(void) {
     gpsMsgData.isrRxIndex = 0;
     gpsMsgData.isrGotStart$ = false;
+    // Setup default criteria to meet a valid location fix
+    gpsMsgData.requiredNumSats = GPS_DEFAULT_MIN_SATS_FOR_FIX;
+    gpsMsgData.requiredMaxHdop = GPS_DEFAULT_MAX_HDOP_FOR_FIX;
+    gpsMsgData.requiredMinTimeInSeconds = GPS_DEFAULT_MIN_SECONDS_FOR_FIX;
 }
 
 /**
@@ -132,14 +167,14 @@ void gpsMsg_exec(void) {
         return;
     }
 
-    if (gpsMsgData.rmcMsgFromIsrReady) {
-        gpsMsgData.rmcMsgFromIsrReady = false;
-        gpsMSg_processRmcSentence();
+    if (gpsMsgData.ggaMsgFromIsrReady) {
+        gpsMsgData.ggaMsgFromIsrReady = false;
+        gpsMSg_processGgaSentence();
     }
 
-    if (!gpsMsgData.rmcMsgAvailable  &&
-        GET_ELAPSED_TIME_IN_SEC(gpsMsgData.waitForRmcTimestamp) > MAX_RMC_WAIT_TIME_IN_SEC) {
-        gpsMsgData.noRmcMsgError = true;
+    if (!gpsMsgData.ggaMsgAvailable  &&
+        GET_ELAPSED_TIME_IN_SEC(gpsMsgData.waitForGgaTimestamp) > MAX_GGA_MSG_WAIT_TIME_IN_SEC) {
+        gpsMsgData.noGgaMsgError = true;
     }
 
 }
@@ -193,74 +228,104 @@ bool gpsMsg_isActive(void) {
 }
 
 /**
-* \brief Get the RMC message processing error status
+* \brief Get the message processing error status
 * 
 * @return bool Returns true if a timeout occured waiting for a 
-*         RMC message from the GPS. False otherwise.
+*         message from the GPS. False otherwise.
 * 
 * \ingroup PUBLIC_API
 */
 bool gpsMsg_isError(void) {
-    return gpsMsgData.noRmcMsgError;
+    return gpsMsgData.noGgaMsgError;
 }
 
 /**
-* \brief Identify if there is a RMC message available.
+* \brief Identify if there is a GGA message available.
 * 
-* @return bool True if RMC message is available. False 
+* @return bool True if GGA message is available. False 
 *         otherwise.
 * 
 * \ingroup PUBLIC_API
 */
-bool gpsMsg_gotRmcMessage(void) {
-    return gpsMsgData.rmcMsgAvailable;
+bool gpsMsg_gotGgaMessage(void) {
+    return gpsMsgData.ggaMsgAvailable;
 }
 
 /**
-* \brief Return the length of the RMC message that is available.
-* 
-* @return uint8_t Length in bytes.
-* 
-* \ingroup PUBLIC_API
-*/
-uint8_t gpsMsg_getRmcMesssageLength(void) {
-    return gpsMsgData.rmcMsgLength;
-}
-
-/**
-* \brief Get the status of whether the RMC message that is 
+* \brief Get the status of whether the GGA message that is 
 *        available contains a valid satellite fix.
 * 
 * @return bool True if valid satellite fix. False otherwise.
 * 
 * \ingroup PUBLIC_API
 */
-bool gpsMsg_gotDataValidRmcMessage(void) {
-    return gpsMsgData.rmcDataIsValid;
+bool gpsMsg_gotValidGpsFix(void) {
+    return gpsMsgData.gpsFixIsValid;
 }
 
 /**
-* \brief Retrieve the RMC message that is available. Copies at 
-*        most 96 bytes into ther buffer.
+* \brief Retrieve GPS data to send to the IoT platform. The last
+*        parsed GGA message received is sitting in the frame
+*        object.
+*  
+* The data is returned as follows: 
+* \li hours      (1 byte)
+* \li minutes    (1 byte)
+* \li latitude   (4 bytes)
+* \li longitude  (4 bytes)
+* \li fixQuality (1 byte)
+* \li numOfSats  (1 byte)
+* \li hdop       (1 byte)
+* \li fixTimeInSecs (2 bytes) 
+* \li reserved   (1 byte)  
 * 
-* @param bufP Buffer to copy the RMC message into.
+* @param bufP Buffer to store the data in
 * 
 * \ingroup PUBLIC_API
 * 
-* @return uint8_t Returns number of bytes copied to buffer
-*
+* @return uint8_t Number of bytes stored in the buffer
 */
-uint8_t gpsMsg_getRmcMessage(uint8_t *bufP) {
-    uint8_t length = 0;
-    // Make sure length is valid, otherwise cap the length
-    if (gpsMsgData.rmcMsgLength > GPS_RX_BUF_SIZE) {
-        length = GPS_RX_BUF_SIZE;
-    } else {
-        length = gpsMsgData.rmcMsgLength;
-    }
-    // Copy the RMC string to the buffer
-    memcpy(bufP, gpsRxBuf, length);
-    return length;
+uint8_t gpsMsg_getGgaParsedData(uint8_t *bufP) {
+    uint16_t temp16;
+    uint32_t temp32;
+
+    gpsReportData_t *reportP = (gpsReportData_t *)bufP;
+    reportP->hours = gpsMsgData.frame.time.hours;
+    reportP->minutes = gpsMsgData.frame.time.minutes;
+
+    temp32 = gpsMsgData.frame.latitude.value;
+    reverseEndian32(&temp32);
+    reportP->latitude = temp32;
+
+    temp32 = gpsMsgData.frame.longitude.value;
+    reverseEndian32(&temp32);
+    reportP->longitude = temp32;
+
+    reportP->fixQuality = gpsMsgData.frame.fix_quality;
+    reportP->numOfSats = gpsMsgData.frame.satellites_tracked;
+    reportP->hdop = gpsMsgData.frame.hdop.value;
+
+    temp16 = gpsPower_getGpsOnTimeInSecs();
+    reverseEndian16(&temp16);
+    reportP->fixTimeInSecs = temp16;
+
+    reportP->reserved = 0;
+
+    return sizeof(gpsReportData_t);
+}
+
+/**
+* \bried Set the GPS measurement criteria used to qualify a 
+*        measurement fix.
+* 
+* @param numSats Required minimum number of satellites
+* @param hdop Max allowed HDOP value (x10)
+* @param minMeasTime Minimum on time in seconds
+*/
+void gpsMsg_setMeasCriteria(uint8_t numSats, uint8_t hdop, uint16_t minMeasTime) {
+    gpsMsgData.requiredNumSats = numSats;
+    gpsMsgData.requiredMaxHdop = hdop;
+    gpsMsgData.requiredMinTimeInSeconds = minMeasTime;
 }
 
 /*************************
@@ -278,49 +343,71 @@ static void gpsMsg_isrRestart(void) {
     disable_UART_rx();
     disable_UART_tx();
 
-    gpsMsgData.noRmcMsgError = false;
-    gpsMsgData.rmcMsgAvailable = false;
-    gpsMsgData.rmcMsgLength = 0;
-    gpsMsgData.rmcDataIsValid = false;
+    gpsMsgData.noGgaMsgError = false;
+    gpsMsgData.ggaMsgAvailable = false;
+    gpsMsgData.ggaMsgLength = 0;
+    gpsMsgData.gpsFixIsValid = false;
     gpsMsgData.isrRxIndex = 0;
     gpsMsgData.isrGotStart$ = false;
-    gpsMsgData.rmcMsgFromIsrReady = false;
+    gpsMsgData.ggaMsgFromIsrReady = false;
 
-    memset(gpsRxBuf,0,GPS_RX_BUF_SIZE);
+    memset(gpsRxBuf, 0, GPS_RX_BUF_SIZE);
 
     // Clear out the UART receive buffer
     garbage = UCA0RXBUF;
 
-    // Get time that we start waiting for RMC message
-    gpsMsgData.waitForRmcTimestamp = GET_SYSTEM_TICK();
+    // Get time that we start waiting for GGA message
+    gpsMsgData.waitForGgaTimestamp = GET_SYSTEM_TICK();
 
     // Enable interrupts
     enable_UART_rx();
     enable_UART_tx();
 }
 
-/**
-* \brief Process a received RMC sentence. Verify the RMC message
-*        against its checkusm. If the checksum matches, then we
-*        are done until restarted. If not verified, restart the
-*        sequence to receive another RMC message. If the data
-*        valid is set in the RMC message, then set the
-*        rmcDataIsValid flag.
-*/
-static void gpsMSg_processRmcSentence(void) {
-    bool dataIsValid = false;
-    if (gpsMsg_verifyChecksum()) {
-        gpsMsgData.rmcMsgAvailable = true;
-        gpsMsgData.rmcMsgLength = gpsMsgData.isrRxIndex;
+static void gpsMsg_checkForGoodFix(void) {
 
-        dataIsValid = gpsMsg_checkForRmcDataValid();
-        if (dataIsValid) {
-            gpsMsgData.rmcDataIsValid = true;
+#ifdef SIMULATE_GPS_FIX
+    //*******************************************************
+    // For Test Only!!!! - Simulate RMC String
+    static uint8_t testCount = 0;
+    if (++testCount == 5) {
+        testCount = 0;
+        memcpy(gpsRxBuf, ggaTestString, sizeof(ggaTestString));
+        gpsMsgData.isrRxIndex = sizeof(ggaTestString);
+        gpsMsgData.ggaMsgLength = sizeof(ggaTestString);
+    }
+    //*******************************************************
+#endif
+
+    if ((gpsPower_getGpsOnTimeInSecs() > gpsMsgData.requiredMinTimeInSeconds) &&
+        gpsMsgData.frame.fix_quality &&
+        (gpsMsgData.frame.satellites_tracked >= gpsMsgData.requiredNumSats) &&
+        (gpsMsgData.frame.hdop.value < gpsMsgData.requiredMaxHdop)) {
+        gpsMsgData.gpsFixIsValid = true;
+    }
+}
+
+/**
+* \brief Process a received GGA sentence. Verify the GGA message
+*        against its checksum. If the checksum matches, then we
+*        perform parsing and look for a good fix. If not
+*        verified, restart the sequence to receive another GGA
+*        message.
+*/
+static void gpsMSg_processGgaSentence(void) {
+    bool parseOk = false;
+    if (gpsMsg_verifyChecksum()) {
+        gpsMsgData.ggaMsgAvailable = true;
+        gpsMsgData.ggaMsgLength = gpsMsgData.isrRxIndex;
+        parseOk = minmea_parse_gga(&gpsMsgData.frame, gpsRxBuf);
+        if (parseOk) {
+            // Run until we receive one GGA message.
+            gpsMsgData.busy = false;
+            // Check if we have a good fix
+            gpsMsg_checkForGoodFix();
         }
-        // Only run until we receive one RMC message.
-        gpsMsgData.busy = false;
     } else {
-        // Keep running until we receive a RMC message
+        // Keep running until we receive a GGA message
         gpsMsg_isrRestart();
     }
 }
@@ -354,54 +441,29 @@ void gpsMsg_isr(void) {
         if (rxByte == 0xA) {
             // Reset flag
             gpsMsgData.isrGotStart$ = false;
-            // Check if we might have a RMC message
-            if (gpsMsg_matchRmc()) {
+            // Check if we might have a GGA message
+            if (gpsMsg_matchGga()) {
                 // Disable interrutps and process the received NMEA sentence.
                 disable_UART_rx();
-                // Set flag to indicate RMC message is ready
-                gpsMsgData.rmcMsgFromIsrReady = true;
+                // Set flag to indicate GGA message is ready
+                gpsMsgData.ggaMsgFromIsrReady = true;
             }
         }
     }
 }
 
 /**
-* \brief Look for the data valid symbol in the RMC message. A 
-*        data valid is noted by the 'A' at offset 18 from the
-*        start of the message (base 0). The 'A' means we have
-*        lock on enough satelites to get a good fix.
-* 
-* @return bool Returns true if the data-is-valid symbol is found 
-*         in the RMC message.
-*/
-static bool gpsMsg_checkForRmcDataValid(void) {
-#ifdef SIMULATE_GPS_FIX
-    //*******************************************************
-    // For Test Only!!!! - Simulate RMC String
-    static uint8_t testCount = 0;
-    if (++testCount == 5) {
-        testCount = 0;
-        memcpy (gpsRxBuf, rmcTestString, sizeof(rmcTestString));
-        gpsMsgData.isrRxIndex = sizeof(rmcTestString);
-        gpsMsgData.rmcMsgLength = sizeof(rmcTestString);
-    }
-    //*******************************************************
-#endif
-    return (gpsRxBuf[18] == 'A') ? true : false;
-}
-
-/**
-* \brief Look for $GNRMC in the beginning of a NMEA message.
+* \brief Look for $GNGGA in the beginning of a NMEA message.
 * 
 * \notes Assumes an NMEA sentence is located in the rxBuf. 
 * 
 * @return bool Return true if found, false other wise.
 */
-static bool gpsMsg_matchRmc(void) {
+static bool gpsMsg_matchGga(void) {
     int i;
     bool match = true;
-    for (i = 0; i < sizeof(gnrmc_match_template); i++) {
-        if (gpsRxBuf[i] != gnrmc_match_template[i]) {
+    for (i = 0; i < sizeof(gga_match_template); i++) {
+        if (gpsRxBuf[i] != gga_match_template[i]) {
             match = false;
         }
     }
@@ -495,8 +557,3 @@ static inline void disable_UART_rx(void) {
     UC0IE &= ~UCA0RXIE;
 }
 
-/*=============================================================================*/
-
-/*****************************
- * UART Interrupt Functions
- ****************************/
