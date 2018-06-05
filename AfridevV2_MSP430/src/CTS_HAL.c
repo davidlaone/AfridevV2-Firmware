@@ -95,7 +95,7 @@ uint8_t CAPSENSE_ACTIVE;
  *
  *  \n       element-----+->Px.y
  *
- *  \n       The TimerA1 interval represents the gate (measurement) time.  The
+ *  \n       The TimerB0 interval represents the gate (measurement) time.  The
  *           number of oscillations that have accumulated in TA1R during the
  *           measurement time represents the capacitance of the element.
  *
@@ -106,8 +106,8 @@ uint8_t CAPSENSE_ACTIVE;
  *  Additional Details:
  *
  *  This driver works by connecting timerA1 to a capacitive element, and then
- *  counting how many counts that timer counts in a single watchdog interval.
- *  We enter Low Power Mode while counting, and the watchdog ISR wakes us up
+ *  counting how many counts that timer counts within the set TimerB0 interval.
+ *  We enter Low Power Mode while counting, and the Timer B0 wakes us up
  *  and tells us to record the total counts.
  */
 void TI_CTS_RO_PINOSC_TA1_TB0_HAL(const struct Sensor *group, uint16_t *counts) {
