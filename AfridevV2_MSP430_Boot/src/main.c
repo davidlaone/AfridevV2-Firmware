@@ -40,7 +40,7 @@
  * \typedef bootData_t 
  * \brief Contains module data.
  */
-typedef struct __attribute__((__packed__)) mainData_s {
+typedef struct __attribute__((__packed__))mainData_s {
     uint8_t rebootReason;    /**< Read from the MSP430 to identify boot reason */
     bool appRecordIsGood;    /**< Flag to indicate appRecord is valid */
     int16_t blrRecordCount;  /**< Contains the bootRecord count field */
@@ -58,7 +58,7 @@ typedef struct __attribute__((__packed__)) mainData_s {
 * \brief Counter for the 12 hour delay used to wait until trying
 *        the next firmware upgrade attempt.
 */
-volatile sys_tick_t sosDelayTicks;
+volatile int32_t sosDelayTicks;
 
 /**
  * \var bootData
@@ -87,10 +87,20 @@ static void disableIndividualInterrupts(void);
 * @return uint8_t  Returns the number of bytes copied.
 */
 uint8_t main_copyBootInfo(uint8_t *bufP) {
+    int length = 0;
+
     // Copy boot data structure to buffer
     memcpy(bufP, &bootData, sizeof(bootData_t));
+
+    // increment buffer pointer
+    bufP += sizeof(bootData_t);
+    length += sizeof(bootData_t);
+
+    // Copy bootRecord structure to buffer
+    length += bootRecord_copy(bufP);
+
     // Return size of boot data structure
-    return sizeof(bootData_t);
+    return length;
 }
 
 /**
@@ -105,7 +115,7 @@ uint8_t main_copyBootInfo(uint8_t *bufP) {
 */
 void main_accessBootInfo(const uint8_t **bufPP, uint8_t *lengthP) {
     *bufPP = (uint8_t *)&bootData;
-    *lengthP = sizeof (bootData_t);
+    *lengthP = sizeof(bootData_t);
 }
 
 /**
@@ -385,12 +395,13 @@ static void low_power_12_hour_delay(void) {
     timerA1_0_init_for_sleep_tick();
     // Enable the global interrupt
     enableGlobalInterrupt();
-    while (sosDelayTicks) {
+    while (sosDelayTicks > 0) {
         WATCHDOG_TICKLE();
         // sleep, wake on Timer1A interrupt
         __bis_SR_register(LPM3_bits);
         sosDelayTicks--;
-        }
+    }
+    bootRecord_addDebugInfo();
     disableGlobalInterrupt();
     // Force watchdog reset
     WDTCTL = 0xDEAD;
@@ -433,7 +444,7 @@ const uint16_t Vector_Table[] =
 #endif
 {
     APP_PROXY_VECTOR(0),          // FFE0 = TA1_1
-    (uint16_t)ISR_Timer1_A0,      // FFE2 = TA1_0 (Used by bootloader) 
+    (uint16_t)ISR_Timer1_A0,      // FFE2 = TA1_0 (Used by bootloader)
     APP_PROXY_VECTOR(2),          // FFE4 = P1
     APP_PROXY_VECTOR(3),          // FFE6 = P2
     UNUSED,                       // FFE8 = unused

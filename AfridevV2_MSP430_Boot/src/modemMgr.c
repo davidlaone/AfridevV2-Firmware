@@ -408,6 +408,17 @@ bool modemMgr_isLinkUpError(void) {
 }
 
 /**
+* \brief Return the timestamp tick of when the modem was last 
+*        shutdown.
+* \ingroup PUBLIC_API
+* 
+* @return sys_tick_t tick counter timestamp
+*/
+sys_tick_t modemMgr_getShutdownTick(void) {
+    return mwBatchData.shutdownTimestamp;
+}
+
+/**
 * \brief Return the payload of the last OTA (partial) message 
 *        received.
 * \ingroup PUBLIC_API
