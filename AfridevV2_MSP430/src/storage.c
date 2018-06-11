@@ -1027,7 +1027,7 @@ static bool redFlagProcessing(int16_t dayLiterSum) {
         // at the end of the mapping period to get the daily average value.
         stData.redFlagThreshTable[stData.storageTime_dayOfWeek] += dayLiterSum;
         stData.redFlagMapDay++;
-        if (stData.redFlagMapDay > RED_FLAG_TOTAL_MAPPING_DAYS) {
+        if (stData.redFlagMapDay >= RED_FLAG_TOTAL_MAPPING_DAYS) {
             int i;
             // Take the sum for each days entry and divide by the
             // number of weeks that the mapping was performed.
