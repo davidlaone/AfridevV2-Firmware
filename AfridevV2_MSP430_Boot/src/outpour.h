@@ -35,7 +35,7 @@
  * \def FW_VERSION_MINOR
  * \brief Specify the AfridevV2 firmware minor version number.
  */
-#define FW_VERSION_MINOR ((uint8_t)0x03)
+#define FW_VERSION_MINOR ((uint8_t)0x04)
 
 /*******************************************************************************
 * System Tick Access
@@ -322,6 +322,7 @@ bool modemMgr_isLinkUpError(void);
 uint8_t modemMgr_getNumOtaMsgsPending(void);
 uint16_t modemMgr_getSizeOfOtaMsgsPending(void);
 uint8_t* modemMgr_getSharedBuffer(void);
+sys_tick_t modemMgr_getShutdownTick (void);
 
 /*******************************************************************************
 * msgOta.c
@@ -423,10 +424,16 @@ void appRecord_test(void);
 typedef struct bootloaderRecord_s {
     uint16_t magic;
     uint16_t bootRetryCount;
+    uint16_t rebootMagic;         /**< Pattern to identify a valid reboot occurred */
+    sys_tick_t modemShutdownTick; /**< System tick that the modem was shutdown */
+    uint8_t networkErrorCount;    /**< Network error counter */
+
     uint16_t crc16;
 } bootloaderRecord_t;
 
 void bootRecord_initBootloaderRecord(void);
 int bootRecord_getBootloaderRecordCount(void);
 void bootRecord_incrementBootloaderRecordCount(void);
+void bootRecord_addDebugInfo (void);
+int bootRecord_copy (uint8_t *bufP);
 

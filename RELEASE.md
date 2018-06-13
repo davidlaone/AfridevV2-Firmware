@@ -1,5 +1,23 @@
 
 Afridev-V2 MSP430G2955 Firmware Release Notes
+Version 0.6
+June 12, 2018
+
+Firmware Changes In This Release:
+
+Redflag Processing
+===================
+Revamp the redflag processing per the firmware specification.
+-Update mapping to 28 days
+-redflag if daily liter sum < 0.25% of map value, cleared if > 75% of map value
+-Send one notification, then return back to the standard transmission rate
+
+Minor Changes
+==============
+-Compile Bootloader with optimizer set to 4 (max)
+-Set default transmission rate to seven days
+
+Afridev-V2 MSP430G2955 Firmware Release Notes
 Version 0.05
 May 16, 2018
 

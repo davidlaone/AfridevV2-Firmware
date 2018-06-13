@@ -48,8 +48,8 @@ uint32_t getSysTicksSinceBoot(void) {
 *
 *  Timer allocation/usage for AfridevV2 APPLICATION:
 *    TimerA0_0, Capture control channel 0 used for system tick (with ISR, vector = 9 @ 0FFF2h)
-*    TimerA1_0, Capture control channel 0 used with capacitance reading
-*    TimerB0_0, Capture control channel 0 used to time the capacitance reading
+*    TimerA1_1, Capture control channel 0 used with capacitance reading (counts oscillations)
+*    TimerB0_0, Capture control channel 0 used to time the capacitance reading (gate timer)
 *
 *  Timer allocation/usage for AfridevV2 BOOT:
 *    TimerA1_0, Capture control channel 0 used for system tick (with ISR, vector = 1 @ 0FFE2h)

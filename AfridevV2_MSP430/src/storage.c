@@ -39,7 +39,7 @@
  * \def TOTAL_HOURS_IN_A_DAY
  * \brief For clarity in the code
  */
-#define TOTAL_HOURS_IN_A_DAY ((uint8_t)24) 
+#define TOTAL_HOURS_IN_A_DAY ((uint8_t)24)
 
 /**
  * \def TOTAL_MINUTES_IN_A_HOUR
@@ -51,7 +51,7 @@
  * \def TOTAL_SECONDS_IN_A_MINUTE
  * \brief For clarity in the code
  */
-#define TOTAL_SECONDS_IN_A_MINUTE ((uint8_t)60) 
+#define TOTAL_SECONDS_IN_A_MINUTE ((uint8_t)60)
 
 /**
  * \def FLASH_WRITE_ONE_BYTE
@@ -71,7 +71,7 @@
  * \brief The daily liters must meet this threshold before a red
  *        flag condition can be set.
  */
-#define MIN_DAILY_LITERS_TO_SET_REDFLAG_CONDITION ((uint16_t)10)
+#define MIN_DAILY_LITERS_TO_SET_REDFLAG_CONDITION ((uint16_t)200)
 
 /**
  * \def FLASH_BLOCK_SIZE
@@ -93,6 +93,20 @@
  *        condition will initiate daily log transmission.
  */
 #define DO_RED_FLAG_TRANSMISSION 1
+
+/**
+ * \def RED_FLAG_TOTAL_MAPPING_DAYS
+ * \brief Specify how many days to perform the redflag mapping.
+ *        Set to 4 weeks (4 x 7)
+ */
+#define RED_FLAG_TOTAL_MAPPING_DAYS 28
+
+/**
+ * \def RED_FLAG_MAPPING_WEEKS_BIT_SHIFT
+ * \brief Specify a bit shift representing the number of weeks 
+ *        that the red flag mapping occurs (4 weeks).
+ */
+#define RED_FLAG_MAPPING_WEEKS_BIT_SHIFT 2
 
 /**
  * \typedef dailyLog_t
@@ -250,7 +264,7 @@ static void checkAndTransmitDailyLogs(bool overrideTransmissionRate);
 static void clearAlignStats(void);
 
 #if (DO_RED_FLAG_PROCESSING != 0)
-static bool redFlagProcessing(void);
+static bool redFlagProcessing(int16_t dayLiterSum);
 #endif
 
 /***************************
@@ -269,7 +283,7 @@ void storageMgr_init(void) {
     storageMgr_resetWeeklyLogs();
 
     // Set default transmission rate
-    stData.transmissionRateInDays = 1;
+    stData.transmissionRateInDays = 7;
 }
 
 /**
@@ -326,11 +340,11 @@ void storageMgr_exec(uint16_t currentFlowRateInMLPerSec) {
     if (stData.storageTime_hours >= TOTAL_HOURS_IN_A_DAY) {
         // Record data
         // The recordLastDay does a number of house-keeping chores:
-        // (1) If the unit is activated, it stores today's water log 
+        // (1) If the unit is activated, it stores today's water log
         // states to flash.
         // (2) It potentially starts the transmission of
-        // the daily water log message. 
-        // (3) It will also potentially activate the Sensor 
+        // the daily water log message.
+        // (3) It will also potentially activate the Sensor
         // and starts the Activate message transmission.
         recordLastDay();
         // Update Time
@@ -458,7 +472,7 @@ void storageMgr_resetRedFlagAndMap(void) {
     stData.redFlagDataFullyPopulated = false;
     stData.redFlagMapDay = 0;
     stData.redFlagDayCount = 0;
-    // Clear the thresh table containing the daily thresh
+    // Clear the thresh table containing the daily threshold mapping
     memset(stData.redFlagThreshTable, 0, sizeof(stData.redFlagThreshTable));
 }
 
@@ -851,6 +865,8 @@ static void recordLastHour(void) {
 */
 static void recordLastDay(void) {
 
+    uint16_t temp;
+
     // Only write to daily log in flash if unit is activated
     if (stData.daysActivated) {
 
@@ -870,20 +886,25 @@ static void recordLastDay(void) {
         msp430Flash_write_int16((uint8_t *)&(dailyLogsP->totalLiters), dayLiterSum);
 
 #if (DO_RED_FLAG_PROCESSING != 0)
-    #if (DO_RED_FLAG_TRANSMISSION != 0)
+#if (DO_RED_FLAG_TRANSMISSION != 0)
         // A red flag condition can initiate daily log transmission.
-        newRedFlagCondition = redFlagProcessing();
-    #else
+        newRedFlagCondition = redFlagProcessing(dayLiterSum);
+#else
         // A red flag condition will not initiate daily log transmission.
-        redFlagProcessing();
-    #endif
+        redFlagProcessing(dayLiterSum);
+#endif
 #endif
 
         // Write the redFlag condition to the daily log
         msp430Flash_write_bytes((uint8_t *)&(dailyLogsP->redFlag), (uint8_t *)&stData.redFlagCondition, FLASH_WRITE_ONE_BYTE);
 
         // Write the red flag threshold value for today to the daily log
-        msp430Flash_write_int16((uint8_t *)&(dailyLogsP->averageLiters), stData.redFlagThreshTable[stData.storageTime_dayOfWeek]);
+        // Only write the value if the red flag threshold table has been fully populated, otherwise write zero
+        temp = 0;
+        if (stData.redFlagDataFullyPopulated) {
+            temp = stData.redFlagThreshTable[stData.storageTime_dayOfWeek];
+        }
+        msp430Flash_write_int16((uint8_t *)&(dailyLogsP->averageLiters), temp);
 
         // Check if its time to transmit data
         // Data is only sent if we are activated and we have reached
@@ -956,10 +977,10 @@ static void writeStatsToDailyLog(void) {
 * @return bool Returns true if a new red flag condition is 
 *         detected.
 */
-static bool redFlagProcessing(void) {
+static bool redFlagProcessing(int16_t dayLiterSum) {
 
     bool newRedFlagCondition = false;
-    int16_t dayLiterSum = stData.dayMilliliterSum / 1000;
+    uint32_t temp = 0;
 
     // check if the Red Flag mapping table is fully populated
     if (stData.redFlagDataFullyPopulated) {
@@ -968,42 +989,31 @@ static bool redFlagProcessing(void) {
         uint16_t redFlagDayThreshValue = stData.redFlagThreshTable[dayOfTheWeek];
 
         if (stData.redFlagCondition) {
-            // see if existing redFlag condition needs to be cleared
-            uint32_t temp;
+            // Identify if existing redFlag condition needs to be cleared
+            // The redflag condition is cleared if todays liter total exceeds 75% of threshold
+            // Calculate 75% of redflag threshold value
             temp = redFlagDayThreshValue + redFlagDayThreshValue + redFlagDayThreshValue;
             uint16_t threeFourths = (temp >> 2) & 0xffff;
-
-            // If we are less than 91 days of red flag condition, increment red flag.
-            // Once we hit 91, we don't need to increment anymore because all want
-            // to know is that we are past 90 days.
-            if (stData.redFlagDayCount < 91) {
-                stData.redFlagDayCount += 1;
-            }
-
             // If today's dailyLiters value is greater than 3/4 of the threshold value,
             // then clear the redFlag condition.
             if (dayLiterSum > threeFourths) {
                 // Reset red flag
                 storageMgr_resetRedFlag();
             }
-            // If today's dailyLiters value is greater than 1/8 of the threshold value,
-            // and we are beyond 90 days, then clear the redFlag condition and restart the redFlag mapping.
-            else if ((dayLiterSum > (redFlagDayThreshValue >> 3)) && (stData.redFlagDayCount > 90)) {
-                // Restart red flag mapping
-                storageMgr_resetRedFlagAndMap();
-            }
+        }
 
-        } else {
-            // Check that today's daily liters were at least 50% of threshold
-            uint16_t halfExpected = redFlagDayThreshValue >> 1;
-            if ((dayLiterSum < halfExpected) && (redFlagDayThreshValue > MIN_DAILY_LITERS_TO_SET_REDFLAG_CONDITION)) {
+        // Re-check redflag condition - as it may have been cleared above
+        if (!stData.redFlagCondition) {
+            // The redflag condition is set if todays liter total falls below 25% of threshold
+            // Check if today's daily liters fall below 25% of threshold
+            uint16_t quarterValue = redFlagDayThreshValue >> 2;
+            if ((dayLiterSum < quarterValue) && (redFlagDayThreshValue > MIN_DAILY_LITERS_TO_SET_REDFLAG_CONDITION)) {
                 // Red flag condition is met
                 stData.redFlagCondition = true;
                 stData.redFlagDayCount = 1;
                 newRedFlagCondition = true;
             } else {
                 // Update the threshold table with a new value based on 75% threshold and 25% today's dailyLiters
-                uint32_t temp;
                 temp = redFlagDayThreshValue + redFlagDayThreshValue + redFlagDayThreshValue + dayLiterSum;
                 uint16_t newAverage = 0;
                 newAverage = (temp >> 2) & 0xffff;
@@ -1011,11 +1021,21 @@ static bool redFlagProcessing(void) {
             }
         }
     } else {
-        // Put today's daily liters into todays threshold table entry - no averaging
-        // We are trying to get a baseline of each days water usage for the first week.
-        stData.redFlagThreshTable[stData.storageTime_dayOfWeek] = dayLiterSum;
+        // Add today's daily liters sum to the existing value in today's threshold table entry.
+        // We are trying to get an average value of each days water usage during the mapping period.
+        // We sum the values for each day over the mapping period, then we will divide by total weeks
+        // at the end of the mapping period to get the daily average value.
+        stData.redFlagThreshTable[stData.storageTime_dayOfWeek] += dayLiterSum;
         stData.redFlagMapDay++;
-        if (stData.redFlagMapDay >= TOTAL_DAYS_IN_A_WEEK) {
+        if (stData.redFlagMapDay >= RED_FLAG_TOTAL_MAPPING_DAYS) {
+            int i;
+            // Take the sum for each days entry and divide by the
+            // number of weeks that the mapping was performed.
+            for (i = 0; i < TOTAL_DAYS_IN_A_WEEK; i++) {
+                temp = stData.redFlagThreshTable[i];
+                temp >>= RED_FLAG_MAPPING_WEEKS_BIT_SHIFT;
+                stData.redFlagThreshTable[i] = temp;
+            }
             // Fully populated after one week.
             stData.redFlagDataFullyPopulated = true;
         }
