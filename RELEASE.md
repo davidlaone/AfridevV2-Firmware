@@ -1,5 +1,21 @@
 
 Afridev-V2 MSP430G2955 Firmware Release Notes
+Version 0.7
+June 12, 2018
+
+Firmware Changes In This Release:
+
+PAD Pin Mapping Updates
+========================
+-Update structure.c with correct pad pin mappings for MSP430G2955.
+
+Change Timer B0 interrupt time
+===============================
+-Update the timer b0 interrupt time during the capacitance measurement. 
+-The timer b0 gate count is now set to 512 Aclock cycles (at 32768HZ) = 15.625ms.
+
+
+Afridev-V2 MSP430G2955 Firmware Release Notes
 Version 0.6
 June 12, 2018
 

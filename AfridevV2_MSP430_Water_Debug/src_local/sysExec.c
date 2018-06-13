@@ -89,6 +89,9 @@ void sysExec_exec(void) {
 
     uint8_t exec_main_loop_counter = 0;
 
+    // Restart the one-second watchdog timeout
+    WATCHDOG_TICKLE();
+
     memset(&sysExecData, 0, sizeof(sysExecData_t));
 
     // Initialize the date for Jan 1, 2017
@@ -107,6 +110,9 @@ void sysExec_exec(void) {
     // Enable the global interrupt
     enableGlobalInterrupt();
 
+    // Restart the one-second watchdog timeout
+    WATCHDOG_TICKLE();
+
     // Start the infinite exec main loop
     while (1) {
 
@@ -114,6 +120,9 @@ void sysExec_exec(void) {
         // Wake on the exit of the TimerA0 interrupt.
         // Wakes every .5 seconds to run the main loop
         __bis_SR_register(LPM3_bits);
+
+        // Restart the one-second watchdog timeout
+        WATCHDOG_TICKLE();
 
         // Take a water measurement
         // Don't take a measurement if the modem or GPS is in use or the water

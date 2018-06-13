@@ -86,7 +86,7 @@
  * \def FW_VERSION_MINOR
  * \brief Specify the outpour firmware minor version number.
  */
-#define FW_VERSION_MINOR ((uint8_t)0x06)
+#define FW_VERSION_MINOR ((uint8_t)0x07)
 
 /**
  * \def ACTIVATE_REBOOT_KEY

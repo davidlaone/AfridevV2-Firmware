@@ -16,7 +16,7 @@
 #define ISR_BUF_SIZE ((uint8_t)200)
 
 #define DBG_DETAILS
-//#define DBG_SAMPLES
+#define DBG_SAMPLES
 #define DBG_TEMP
 #define DBG_POUR
 
