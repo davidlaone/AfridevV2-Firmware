@@ -50,62 +50,63 @@
 
 #include "structure.h"
 
+#ifdef RO_PINOSC_TA1_TB0
 
-// First Element (P2.0)
+// First Element (P4.7)
 const struct Element pad0 = {
 
-	.inputPxselRegister = (unsigned char *)&P2SEL,
-	.inputPxsel2Register = (unsigned char *)&P2SEL2,
-	.inputBits = BIT0,
-	.threshold = 80
+    .inputPxselRegister = (unsigned char *)&P4SEL,
+    .inputPxsel2Register = (unsigned char *)&P4SEL2,
+    .inputBits = BIT7,
+    .threshold = 80
 };
 
 
-// Second Element (P2.5)
+// Second Element (P2.1)
 const struct Element pad1 = {
 
-	.inputPxselRegister = (unsigned char *)&P2SEL,
-	.inputPxsel2Register = (unsigned char *)&P2SEL2,
-	.inputBits = BIT5,
-	.threshold = 80
+    .inputPxselRegister = (unsigned char *)&P2SEL,
+    .inputPxsel2Register = (unsigned char *)&P2SEL2,
+    .inputBits = BIT1,
+    .threshold = 80
 };
 
 
-// Third Element (P2.1)
+// Third Element (P4.6)
 const struct Element pad2 = {
 
-	.inputPxselRegister = (unsigned char *)&P2SEL,
-	.inputPxsel2Register = (unsigned char *)&P2SEL2,
-	.inputBits = BIT1,
-	.threshold = 80
+    .inputPxselRegister = (unsigned char *)&P4SEL,
+    .inputPxsel2Register = (unsigned char *)&P4SEL2,
+    .inputBits = BIT6,
+    .threshold = 80
 };
 
-// Fourth Element (P2.4)
+// Fourth Element (P2.2)
 const struct Element pad3 = {
 
-	.inputPxselRegister = (unsigned char *)&P2SEL,
-	.inputPxsel2Register = (unsigned char *)&P2SEL2,
-	.inputBits = BIT4,
-	.threshold = 80
+    .inputPxselRegister = (unsigned char *)&P2SEL,
+    .inputPxsel2Register = (unsigned char *)&P2SEL2,
+    .inputBits = BIT2,
+    .threshold = 80
 };
 
 
-// Fifth Element (P2.2)
+// Fifth Element (P4.5)
 const struct Element pad4 = {
 
-	.inputPxselRegister = (unsigned char *)&P2SEL,
-	.inputPxsel2Register = (unsigned char *)&P2SEL2,
-	.inputBits = BIT2,
-	.threshold = 80
+    .inputPxselRegister = (unsigned char *)&P4SEL,
+    .inputPxsel2Register = (unsigned char *)&P4SEL2,
+    .inputBits = BIT5,
+    .threshold = 80
 };
 
-// Sixth Element (P2.3)
+// Sixth Element (P3.0)
 const struct Element pad5 = {
 
-	.inputPxselRegister = (unsigned char *)&P2SEL,
-	.inputPxsel2Register = (unsigned char *)&P2SEL2,
-	.inputBits = BIT3,
-	.threshold = 80
+    .inputPxselRegister = (unsigned char *)&P3SEL,
+    .inputPxsel2Register = (unsigned char *)&P3SEL2,
+    .inputBits = BIT0,
+    .threshold = 80
 };
 
 //*** CAP TOUCH HANDLER *******************************************************/
@@ -128,5 +129,8 @@ const struct Sensor pad_sensors =
     // Timer Information
     .sourceScale = TIMER_SOURCE_DIV_0,       //  No divider
     .measGateSource = TIMER_ACLK,            //  0->SMCLK, 1-> ACLK
-    .accumulationCycles = 64                 //  Count for 64 cycles (at 32768HZ) = 1.953ms
+    .accumulationCycles = 512                //  Count for 512 cycles (at 32768HZ) = 15.625ms
 };
+
+#endif
+
